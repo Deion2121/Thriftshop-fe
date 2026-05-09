@@ -1,0 +1,166 @@
+import React from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, ShoppingBag, Trash2, X } from "lucide-react";
+
+const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop }) => {
+  const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0);
+  const shipping = subtotal > 0 && subtotal < 250 ? 45 : 0;
+  const total = subtotal + shipping;
+
+  const removeItem = (id, variantName) => {
+    setCartItems((prev) =>
+      prev.filter(
+        (item) =>
+          !(item.id === id && (item.selectedVariant?.colorName || "Default") === variantName)
+      )
+    );
+  };
+
+  const updateQuantity = (id, variantName, delta) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.id === id && (item.selectedVariant?.colorName || "Default") === variantName
+            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 z-[300] backdrop-blur-sm"
+          />
+
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-[301] shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <ShoppingBag size={20} />
+                <h2 className="font-black uppercase tracking-tighter text-xl">Your Bag [{cartItems.length}]</h2>
+              </div>
+              <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {cartItems.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+                  <p className="text-gray-400 uppercase text-[10px] font-black tracking-[0.2em]">Your bag is empty</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openShop?.("All", "All", "All");
+                    }}
+                    className="text-xs font-bold underline uppercase tracking-widest"
+                  >
+                    Start Shopping
+                  </button>
+                </div>
+              ) : (
+                cartItems.map((item) => {
+                  const variantName = item.selectedVariant?.colorName || "Default";
+
+                  return (
+                    <div key={`${item.id}-${variantName}`} className="flex gap-4 border-b border-gray-100 pb-6">
+                      <div className="w-24 h-32 bg-gray-100 shrink-0">
+<img
+                           src={item.selectedVariant?.image || item.img}
+                           alt={item.title}
+                           className="w-full h-full object-contain"
+                         />
+                      </div>
+                      <div className="flex flex-col justify-between py-1 flex-1 min-w-0">
+                        <div>
+                          <div className="flex justify-between gap-3">
+                            <h3 className="text-[11px] font-black uppercase tracking-tight break-words">{item.title}</h3>
+                            <button type="button" onClick={() => removeItem(item.id, variantName)}>
+                              <Trash2 size={14} className="text-gray-400 hover:text-red-500" />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-400 uppercase font-bold">{item.brand}</p>
+                          <p className="text-[10px] mt-2 font-medium">Color: {variantName}</p>
+
+                          <div className="mt-3 inline-flex items-center border border-gray-200">
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(item.id, variantName, -1)}
+                              className="w-8 h-8 text-sm hover:bg-gray-100"
+                            >
+                              -
+                            </button>
+                            <span className="w-9 text-center text-xs font-bold">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(item.id, variantName, 1)}
+                              className="w-8 h-8 text-sm hover:bg-gray-100"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[12px] font-black italic">
+                          PHP {(Number(item.price || 0) * item.quantity).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {cartItems.length > 0 && (
+              <div className="p-8 bg-gray-50 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-gray-500">
+                    <span>Subtotal</span>
+                    <span>PHP {subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-gray-500">
+                    <span>Shipping</span>
+                    <span>{shipping === 0 ? "Free" : `PHP ${shipping.toLocaleString()}`}</span>
+                  </div>
+                  <div className="flex justify-between items-end border-t border-gray-200 pt-4">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Total</span>
+                    <span className="text-xl font-black italic">PHP {total.toLocaleString()}</span>
+                  </div>
+                </div>
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest leading-relaxed">
+                  Free shipping starts at PHP 250. Taxes are calculated at checkout.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert("Checkout preview complete. Your order has been prepared.");
+                    setCartItems([]);
+                    onClose();
+                  }}
+                  className="flex w-full items-center justify-center gap-3 bg-black py-5 text-[11px] font-black uppercase tracking-[0.3em] text-white transition-colors hover:bg-zinc-800"
+                >
+                  Checkout Now <ArrowRight size={14} />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default CartModal;
