@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* --------------------------- */
+/* Fade Slide Animation        */
+/* --------------------------- */
+@keyframes fadeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeSlideDown {
+  animation: fadeSlideDown 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* --------------------------- */
+/* Scrollbar Hide (Ecommerce)  */
+/* --------------------------- */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* --------------------------- */
+/* HEADER — Luxury Dropdown    */
+/* --------------------------- */
+.nav-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  width: 420px;
+  max-width: 190vw;
+
+  /* Premium Blur Glass Style */
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(14px);
+
+  /* Soft Borders & Rounded Corners */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50px;
+
+  padding: 1.8rem 2rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition: all 0.28s ease-out;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+/* Show dropdown on hover */
+.nav-item:hover .nav-dropdown {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(4px);
+}
+
+/* Dropdown content grid */
+.nav-dropdown-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.7rem;
+}
+
+/* Dropdown links styles */
+.nav-dropdown-content a {
+  font-size: 0.8rem;
+  letter-spacing: 1.4px;
+  color: #e4e4e4;
+  text-transform: uppercase;
+  font-weight: 500;
+  transition: color 0.25s ease;
+}
+
+.nav-dropdown-content a:hover {
+  color: #ff4d4d; /* refined red hover */
+}
+
+/* Section title inside dropdown */
+.nav-dropdown-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #fff;
+  margin-bottom: 0.5rem;
+  letter-spacing: 1px;
+}
+
+/* Divider line above dropdown */
+.nav-dropdown::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: -1; /* ensure it stays behind content */
+}
+
+/* Menu underline hover effect for nav buttons */
+nav .group button {
+  position: relative;
+  background: transparent; /* ensure no background if needed */
+  border: none; /* reset borders if any */
+}
+
+nav .group button::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 0%;
+  height: 1px;
+  background: #ffffff;
+  transition: width 0.3s ease;
+  opacity: 0.8;
+}
+
+nav .group:hover button::after {
+  width: 100%;
+}
+
+/* Remove scrollbars globally for clean look */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
