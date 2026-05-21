@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart, LogOut, Menu, Search, ShoppingCart, User, X } from "lucide-react";
+import { Heart, LogOut, Menu, Search, ShoppingCart, User, X, Package2 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import logo from "../../assets/flogo.png";
 
@@ -32,7 +32,7 @@ const CATEGORY_DATA = {
 
 const NAV_ITEMS = Object.keys(CATEGORY_DATA);
 
-function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, refreshPage, handleSearch }) {
+function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, refreshPage, handleSearch, openTrackingModal }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
@@ -223,6 +223,15 @@ function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, re
                   {cartCount}
                 </span>
               )}
+            </button>
+
+            <button
+              type="button"
+              className="relative hover:scale-110 transition"
+              onClick={openTrackingModal}
+              aria-label="Track Order"
+            >
+              <Package2 size={20} />
             </button>
 
             <button type="button" className="lg:hidden" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">

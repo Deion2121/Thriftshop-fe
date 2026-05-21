@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { SlidersHorizontal, SearchX } from "lucide-react";
+import { AlertCircle, RefreshCcw, SlidersHorizontal, SearchX, Shirt } from "lucide-react";
 import ProductCard from "./ProductCard";
 
 const sortProducts = (products, sort) => {
@@ -19,6 +19,9 @@ const sortProducts = (products, sort) => {
 
 const ProductGrid = ({
   products,
+  loading = false,
+  error = "",
+  onRetry,
   filters,
   onOpenFilters,
   addToCart,
@@ -43,20 +46,20 @@ const ProductGrid = ({
 
   return (
     <div className="mx-auto max-w-[1440px] px-0 pt-8 pb-20">
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="mb-8 flex flex-col gap-4 border border-black/5 bg-[#f7f7f4] p-4 md:flex-row md:items-center md:justify-between md:p-5">
         <div className="flex flex-wrap gap-2">
           {activeFilters.length > 0 ? (
             activeFilters.map((filter) => (
               <span
                 key={filter}
-                className="border border-gray-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-600"
+                className="border border-black/10 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-600"
               >
                 {filter}
               </span>
             ))
           ) : (
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">
-              Browse the full drop
+            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">
+              <Shirt size={14} /> Browse the full drop
             </span>
           )}
         </div>
@@ -64,13 +67,42 @@ const ProductGrid = ({
         <button
           type="button"
           onClick={onOpenFilters}
-          className="inline-flex items-center justify-center gap-3 border border-black px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all hover:bg-black hover:text-white active:scale-95"
+          className="inline-flex min-h-12 items-center justify-center gap-3 border border-black bg-black px-5 text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all hover:bg-zinc-800 active:scale-95"
         >
           <SlidersHorizontal size={16} /> Filter & Sort
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-12 md:grid-cols-3 lg:grid-cols-4">
+      {error && (
+        <div className="mb-8 flex flex-col gap-4 border border-red-100 bg-red-50 p-5 text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 shrink-0" size={18} />
+            <p className="text-sm font-semibold">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex h-10 items-center justify-center gap-2 border border-red-200 bg-white px-4 text-[10px] font-black uppercase tracking-widest transition hover:border-red-400"
+          >
+            <RefreshCcw size={14} /> Retry
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-12 md:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className="animate-pulse">
+              <div className="aspect-3/4 bg-[#f1f1ee]" />
+              <div className="mt-4 h-3 w-2/3 bg-[#f1f1ee]" />
+              <div className="mt-3 h-3 w-1/3 bg-[#f1f1ee]" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && (
+      <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-y-10">
         <AnimatePresence mode="popLayout">
           {sortedProducts.map((product, index) => (
             <motion.div
@@ -95,8 +127,9 @@ const ProductGrid = ({
           ))}
         </AnimatePresence>
       </div>
+      )}
 
-      {sortedProducts.length === 0 && (
+      {!loading && !error && sortedProducts.length === 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

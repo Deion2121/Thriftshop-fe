@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { Route, Routes } from "react-router-dom";
 
 import AdminDashboard from "../features/admin/AdminDashboard";
@@ -16,7 +15,9 @@ import Footer from "../components/layout/Footer";
 import ProductGrid from "../features/products/ProductGrid";
 import FilterSidebar from "../features/products/FilterSidebar";
 import CartModal from "../features/cart/CartModal";
-import { formatProductForFrontend } from "../utils/productImages";
+import OrderTrackingModal from "../features/orders/OrderTrackingModal";
+import { useAuth } from "../features/auth/AuthContext";
+import { fallbackProducts, formatProductForFrontend } from "../utils/productImages";
 import AdminRoute from "./AdminRoutes";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/products`;
@@ -32,6 +33,7 @@ const defaultFilters = {
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 const productKey = (product) => String(product?.id ?? product?.title ?? "");
+const shopChips = ["Men", "Women", "Shoes", "Sale"];
 
 const readStoredList = (key) => {
   try {
@@ -43,6 +45,7 @@ const readStoredList = (key) => {
 };
 
 function AppRoutes() {
+  const { currentUser } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [cartItems, setCartItems] = useState(() => readStoredList("cartItems"));
   const [wishlistItems, setWishlistItems] = useState(() => readStoredList("wishlistItems"));
@@ -51,19 +54,35 @@ function AppRoutes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isShopView, setIsShopView] = useState(false);
   const [allProducts, setAllProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState("");
   const [filters, setFilters] = useState(defaultFilters);
+  const [trackingModalOpen, setTrackingModalOpen] = useState(false);
+  const [trackedOrderNumber, setTrackedOrderNumber] = useState(() => localStorage.getItem("recentOrderNumber"));
+
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      setProductsError("");
+      const res = await fetch(API_URL, { credentials: "include" });
+      const data = await res.json().catch(() => []);
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Could not load products.");
+      }
+
+      const formatted = Array.isArray(data) ? data.map(formatProductForFrontend) : [];
+      setAllProducts(formatted);
+    } catch (err) {
+      console.warn("Using fallback products because the API is unavailable:", err.message);
+      setProductsError("");
+      setAllProducts(fallbackProducts);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await axios.get(API_URL);
-        const formatted = Array.isArray(res.data) ? res.data.map(formatProductForFrontend) : [];
-        setAllProducts(formatted);
-      } catch (err) {
-        console.error("Product fetch error:", err);
-      }
-    };
-
     fetchProducts();
   }, []);
 
@@ -166,16 +185,23 @@ function AppRoutes() {
     setSearchTerm("");
   };
 
+  const handleOrderCreated = (orderNumber) => {
+    if (!orderNumber) return;
+    setTrackedOrderNumber(orderNumber);
+    localStorage.setItem("recentOrderNumber", orderNumber);
+  };
+
   const ShopLayout = () => (
     <>
-      <Header
-        cartItems={cartItems}
-        wishlistCount={wishlistItems.length}
-        openCartModal={() => setCartModalOpen(true)}
-        openShop={openShop}
-        handleSearch={handleSearch}
-        refreshPage={refreshPage}
-      />
+       <Header
+         cartItems={cartItems}
+         wishlistCount={wishlistItems.length}
+         openCartModal={() => setCartModalOpen(true)}
+         openShop={openShop}
+         handleSearch={handleSearch}
+         refreshPage={refreshPage}
+         openTrackingModal={() => setTrackingModalOpen(true)}
+       />
 
       <div className="grow relative">
         {!isShopView ? (
@@ -185,17 +211,69 @@ function AppRoutes() {
             <LogoSlider />
           </>
         ) : (
-          <main className="pt-32 pb-20">
+          <main className="bg-white pb-20 pt-28">
             <div className="max-w-[1400px] mx-auto px-4 md:px-10">
               <button
                 type="button"
                 onClick={goHome}
-                className="mb-8 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest hover:text-gray-500"
+                className="mb-6 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest hover:text-gray-500"
               >
                 <ArrowLeft size={14} /> Back to Home
               </button>
 
-              <div className="flex flex-col gap-3 border-b border-gray-100 pb-8 md:flex-row md:items-end md:justify-between">
+              <div className="relative overflow-hidden bg-black px-5 py-8 text-white md:px-8 md:py-10">
+                <div className="absolute right-0 top-0 hidden h-full w-1/2 bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,255,0.24),transparent_32%)] md:block" />
+                <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-2 border border-white/15 bg-white/10 px-3 py-2">
+                      <Sparkles size={13} />
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/65">
+                        Shop the rack
+                      </p>
+                    </div>
+                    <h1 className="mt-4 max-w-4xl text-4xl font-black uppercase leading-[0.9] tracking-tight md:text-6xl">
+                      {searchTerm ? `Results for ${searchTerm}` : filters.brand !== "All" ? filters.brand : "All Products"}
+                    </h1>
+                    <p className="mt-4 max-w-xl text-sm leading-7 text-white/60">
+                      Filter the latest thrifted finds, streetwear staples, and branded pieces ready for your next fit.
+                    </p>
+                  </div>
+                  <div className="border border-white/15 bg-white/10 p-4 text-left backdrop-blur md:min-w-56">
+                    <p className="text-4xl font-black italic leading-none">{filteredProducts.length}</p>
+                    <p className="mt-2 text-[10px] font-black uppercase tracking-[0.25em] text-white/55">
+                      Items found
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4 border-x border-b border-black/10 bg-[#f7f7f4] p-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {shopChips.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => openShop("All", category, "All")}
+                      className={`border px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition ${
+                        filters.category === category
+                          ? "border-black bg-black text-white"
+                          : "border-black/10 bg-white text-gray-600 hover:border-black hover:text-black"
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openShop("All", "All", "All")}
+                  className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 transition hover:text-black"
+                >
+                  Full drop <ArrowRight size={13} />
+                </button>
+              </div>
+
+              <div className="sr-only">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">
                     Shop
@@ -211,6 +289,9 @@ function AppRoutes() {
 
               <ProductGrid
                 products={filteredProducts}
+                loading={productsLoading}
+                error={productsError}
+                onRetry={fetchProducts}
                 filters={filters}
                 onOpenFilters={() => setShopOpen(true)}
                 addToCart={addToCart}
@@ -233,14 +314,22 @@ function AppRoutes() {
         allProducts={allProducts}
       />
 
-      <CartModal
-        isOpen={cartModalOpen}
-        onClose={() => setCartModalOpen(false)}
-        cartItems={cartItems}
-        setCartItems={setCartItems}
-        openShop={openShop}
-      />
-    </>
+       <CartModal
+         isOpen={cartModalOpen}
+         onClose={() => setCartModalOpen(false)}
+         cartItems={cartItems}
+         setCartItems={setCartItems}
+         openShop={openShop}
+         onOrderCreated={handleOrderCreated}
+       />
+       <OrderTrackingModal
+         isOpen={trackingModalOpen}
+         onClose={() => setTrackingModalOpen(false)}
+         orderNumber={trackedOrderNumber}
+         currentUser={currentUser}
+         recentOrder={trackedOrderNumber}
+       />
+     </>
   );
 
   if (isLoading) {

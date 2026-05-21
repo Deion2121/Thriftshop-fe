@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { authService } from "./AuthServices";
+import { ArrowLeft, ArrowRight, Lock, Mail } from "lucide-react";
+import logo from "../../assets/flogo.png";
+import clip from "../../assets/clip.mp4";
 
 const Register = () => {
   const [email, setEmail] = useState("");
@@ -37,11 +40,11 @@ const Register = () => {
         password,
       });
 
-      if (!res?.token || !res?.user) {
+      if (!res?.user) {
         throw new Error("Account created, but login failed");
       }
 
-      login(res.user, res.token);
+      login(res.user);
       navigate("/");
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -51,82 +54,131 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black relative overflow-hidden px-4">
-      <div className="absolute w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl top-10 left-10" />
-      <div className="absolute w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl bottom-10 right-10" />
-
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[420px] p-8 sm:p-10 relative z-10">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-wide text-black">Create Account</h1>
-          <p className="mt-2 text-sm text-gray-500">Join JThrift and start shopping.</p>
-        </div>
-
-        <form onSubmit={handleRegister} className="space-y-5">
-          {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="text-sm font-medium text-gray-600">Email Address</label>
-            <input
-              type="email"
-              placeholder="sample@example.com"
-              className="w-full mt-2 p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-gray-600">Password</label>
-            <input
-              type="password"
-              placeholder="Minimum 6 characters"
-              className="w-full mt-2 p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-gray-600">Confirm Password</label>
-            <input
-              type="password"
-              placeholder="Repeat password"
-              className="w-full mt-2 p-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 transition"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-4 py-3 rounded-xl bg-black text-white font-semibold hover:bg-yellow-500 hover:text-black transition duration-300 disabled:opacity-50"
-          >
-            {loading ? "Creating account..." : "Create Account"}
-          </button>
-
+    <main className="grid min-h-screen bg-black text-white lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="relative hidden overflow-hidden lg:block">
+        <video
+          src={clip}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 h-full w-full object-cover opacity-80"
+        />
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="relative z-10 flex h-full flex-col justify-between p-10">
           <button
             type="button"
-            onClick={() => navigate("/login")}
-            className="w-full py-3 rounded-xl border border-black text-black font-semibold hover:bg-black hover:text-white transition duration-300"
+            onClick={() => navigate("/")}
+            className="inline-flex w-fit items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-white/80 transition hover:text-white"
           >
-            Back to Login
+            <ArrowLeft size={15} /> Back to shop
           </button>
-        </form>
-      </div>
-    </div>
+
+          <div className="max-w-xl pb-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60">Member access</p>
+            <h1 className="mt-4 text-6xl font-black uppercase leading-[0.9] tracking-tight">
+              Create your JThrift account
+            </h1>
+            <p className="mt-5 text-sm leading-7 text-white/70">
+              Save your cart, track orders, and keep your account synced across the shop.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="flex min-h-screen items-center justify-center px-5 py-10">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex items-center justify-between">
+            <button type="button" onClick={() => navigate("/")} className="lg:hidden">
+              <ArrowLeft size={22} />
+            </button>
+            <img src={logo} alt="JThrift" className="h-12" />
+          </div>
+
+          <div className="border border-white/10 bg-white p-6 text-black shadow-2xl sm:p-8">
+            <div className="mb-8">
+              <p className="text-[10px] font-black uppercase tracking-[0.35em] text-gray-400">New account</p>
+              <h2 className="mt-2 text-3xl font-black uppercase tracking-tight">Register</h2>
+              <p className="mt-2 text-sm text-gray-500">Use a real email and a password with at least 8 characters.</p>
+            </div>
+
+            <form onSubmit={handleRegister} className="space-y-5">
+              {error && (
+                <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Email Address</span>
+                <div className="mt-2 flex h-12 items-center border border-gray-200 px-3 focus-within:border-black">
+                  <Mail size={17} className="mr-3 text-gray-400" />
+                  <input
+                    type="email"
+                    placeholder="sample@example.com"
+                    className="h-full w-full bg-transparent text-sm outline-none"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Password</span>
+                <div className="mt-2 flex h-12 items-center border border-gray-200 px-3 focus-within:border-black">
+                  <Lock size={17} className="mr-3 text-gray-400" />
+                  <input
+                    type="password"
+                    placeholder="Minimum 8 characters"
+                    className="h-full w-full bg-transparent text-sm outline-none"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Confirm Password</span>
+                <div className="mt-2 flex h-12 items-center border border-gray-200 px-3 focus-within:border-black">
+                  <Lock size={17} className="mr-3 text-gray-400" />
+                  <input
+                    type="password"
+                    placeholder="Repeat password"
+                    className="h-full w-full bg-transparent text-sm outline-none"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+              </label>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex h-12 w-full items-center justify-center gap-3 bg-black text-xs font-black uppercase tracking-[0.25em] text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? "Creating..." : "Create Account"} {!loading && <ArrowRight size={15} />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="h-12 w-full border border-black text-xs font-black uppercase tracking-[0.25em] transition hover:bg-black hover:text-white"
+              >
+                Back to Login
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 };
 

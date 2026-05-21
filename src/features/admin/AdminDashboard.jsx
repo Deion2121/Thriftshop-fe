@@ -1,15 +1,17 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   ArrowDownUp,
   BarChart3,
   Boxes,
   Edit,
+  Eye,
   ImageIcon,
   LayoutDashboard,
   LogOut,
   Mail,
   Package,
+  PackageCheck,
   Plus,
   RefreshCcw,
   Save,
@@ -17,11 +19,12 @@ import {
   ShieldCheck,
   ShoppingCart,
   Trash2,
-  Upload,
+  Truck,
   Users,
   X,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { csrfHeaders } from "../../utils/apiSecurity";
 
 const emptyProduct = {
   name: "",
@@ -35,6 +38,7 @@ const emptyProduct = {
 const sections = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "inventory", label: "Inventory", icon: Package },
+  { id: "orders", label: "Orders", icon: Truck },
   { id: "customers", label: "Customers", icon: Users },
   { id: "reports", label: "Reports", icon: BarChart3 },
 ];
@@ -50,34 +54,44 @@ const sortOptions = [
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const PRODUCTS_API_URL = `${API_BASE}/api/products`;
 const USERS_API_URL = `${API_BASE}/api/users/users`;
+const ORDERS_API_URL = `${API_BASE}/api/orders`;
+const orderStatusOptions = ["pending", "confirmed", "shipped", "in_transit", "delivered"];
+
+const normalizeProduct = (product = {}) => ({
+  ...product,
+  image: product.image || product.image_url || "",
+});
 
 const AdminDashboard = () => {
   const { logout, user } = useAuth();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const [orderSearchTerm, setOrderSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("newest");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [statusSaving, setStatusSaving] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState(emptyProduct);
-  const [imageFile, setImageFile] = useState(null);
-
-  const token = localStorage.getItem("accessToken");
 
   const authConfig = useMemo(
     () => ({
       withCredentials: true,
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: csrfHeaders(),
     }),
-    [token]
+    []
   );
 
   const fetchProducts = async () => {
@@ -85,7 +99,7 @@ const AdminDashboard = () => {
       setError("");
       setLoading(true);
       const res = await axios.get(PRODUCTS_API_URL, { withCredentials: true });
-      setProducts(Array.isArray(res.data) ? res.data : []);
+      setProducts(Array.isArray(res.data) ? res.data.map(normalizeProduct) : []);
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || "Could not load products.");
     } finally {
@@ -106,15 +120,34 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchOrders = async () => {
+    try {
+      setError("");
+      setOrdersLoading(true);
+      const res = await axios.get(`${ORDERS_API_URL}/admin/all`, authConfig);
+      setOrders(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || "Could not load orders.");
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
   const refreshCurrentSection = () => {
     if (activeSection === "customers") {
       fetchCustomers();
       return;
     }
 
+    if (activeSection === "orders") {
+      fetchOrders();
+      return;
+    }
+
     if (activeSection === "reports" || activeSection === "dashboard") {
       fetchProducts();
       fetchCustomers();
+      fetchOrders();
       return;
     }
 
@@ -124,12 +157,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
+    fetchOrders();
   }, []);
 
   const openCreateForm = () => {
     setEditingProduct(null);
     setFormData(emptyProduct);
-    setImageFile(null);
     setFormOpen(true);
     setError("");
     setSuccess("");
@@ -143,7 +176,7 @@ const AdminDashboard = () => {
       category: product.category || "",
       subCategory: product.subCategory || "",
       price: product.price ?? "",
-      image: product.image || "",
+      image: product.image || product.image_url || "",
     });
     setFormOpen(true);
     setError("");
@@ -154,24 +187,12 @@ const AdminDashboard = () => {
     setFormOpen(false);
     setEditingProduct(null);
     setFormData(emptyProduct);
-    setImageFile(null);
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please select a valid image file.");
-      return;
-    }
-    setImageFile(file);
-    setFormData((prev) => ({ ...prev, image: "" }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -197,11 +218,12 @@ const AdminDashboard = () => {
 
       if (editingProduct) {
         const res = await axios.put(`${PRODUCTS_API_URL}/${editingProduct.id}`, payload, authConfig);
-        setProducts((prev) => prev.map((product) => (product.id === editingProduct.id ? res.data : product)));
+        const updatedProduct = normalizeProduct(res.data);
+        setProducts((prev) => prev.map((product) => (product.id === editingProduct.id ? updatedProduct : product)));
         setSuccess("Product updated.");
       } else {
         const res = await axios.post(PRODUCTS_API_URL, payload, authConfig);
-        setProducts((prev) => [res.data, ...prev]);
+        setProducts((prev) => [normalizeProduct(res.data), ...prev]);
         setSuccess("Product added.");
       }
 
@@ -231,6 +253,30 @@ const AdminDashboard = () => {
   const handleLogout = async () => {
     await logout();
     window.location.href = "/";
+  };
+
+  const updateOrderStatus = async (orderNumber, status) => {
+    if (!orderNumber) return;
+
+    try {
+      setStatusSaving(true);
+      setError("");
+      setSuccess("");
+      await axios.patch(
+        `${ORDERS_API_URL}/${orderNumber}/status`,
+        { status, notes: `Admin marked order as ${status.replace("_", " ")}` },
+        authConfig
+      );
+
+      const updateOrder = (order) => (order.order_number === orderNumber ? { ...order, status } : order);
+      setOrders((prev) => prev.map(updateOrder));
+      setSelectedOrder((prev) => (prev ? updateOrder(prev) : prev));
+      setSuccess("Order status updated.");
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || "Order status update failed.");
+    } finally {
+      setStatusSaving(false);
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -264,8 +310,34 @@ const AdminDashboard = () => {
     );
   }, [customerSearchTerm, customers]);
 
+  const filteredOrders = useMemo(() => {
+    const query = orderSearchTerm.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      const itemsText = (Array.isArray(order.items) ? order.items : [])
+        .map((item) => [item.name, item.brand, item.variant].filter(Boolean).join(" "))
+        .join(" ");
+      const searchable = [
+        order.order_number,
+        order.email,
+        order.status,
+        order.tracking_number,
+        itemsText,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+
+      const matchesSearch = !query || searchable.includes(query);
+      const matchesStatus = orderStatusFilter === "All" || order.status === orderStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [orderSearchTerm, orderStatusFilter, orders]);
+
   const stats = useMemo(() => {
     const totalValue = products.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+    const orderRevenue = orders.reduce((acc, order) => acc + Number(order.total || 0), 0);
+    const openOrders = orders.filter((order) => order.status !== "delivered").length;
     const averagePrice = products.length ? totalValue / products.length : 0;
     const uniqueBrands = new Set(products.map((product) => product.brand).filter(Boolean)).size;
     const adminCount = customers.filter((customer) => customer.role === "admin").length;
@@ -283,8 +355,8 @@ const AdminDashboard = () => {
       }, {})
     ).sort((a, b) => b[1] - a[1])[0]?.[0] || "None";
 
-    return { totalValue, averagePrice, uniqueBrands, adminCount, categories, topCategory, topBrand };
-  }, [customers, products]);
+    return { totalValue, orderRevenue, openOrders, averagePrice, uniqueBrands, adminCount, categories, topCategory, topBrand };
+  }, [customers, orders, products]);
 
   const activeLabel = sections.find((section) => section.id === activeSection)?.label || "Dashboard";
 
@@ -352,6 +424,10 @@ const AdminDashboard = () => {
                 <SearchInput value={customerSearchTerm} onChange={setCustomerSearchTerm} placeholder="Search customers or roles" />
               )}
 
+              {activeSection === "orders" && (
+                <SearchInput value={orderSearchTerm} onChange={setOrderSearchTerm} placeholder="Search orders, customers, items" />
+              )}
+
               <button
                 type="button"
                 onClick={refreshCurrentSection}
@@ -371,6 +447,23 @@ const AdminDashboard = () => {
           </div>
         </header>
 
+        <nav className="sticky top-[121px] z-10 flex gap-2 overflow-x-auto border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={`inline-flex h-10 shrink-0 items-center gap-2 border px-3 text-[10px] font-black uppercase tracking-widest ${
+                activeSection === section.id
+                  ? "border-black bg-black text-white"
+                  : "border-slate-200 bg-white text-slate-500"
+              }`}
+            >
+              <section.icon size={14} /> {section.label}
+            </button>
+          ))}
+        </nav>
+
         <div className="space-y-6 p-4 md:p-8">
           {(error || success) && (
             <div
@@ -387,8 +480,8 @@ const AdminDashboard = () => {
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard icon={<Boxes size={20} />} label="Total Products" value={products.length} />
             <StatCard icon={<Users size={20} />} label="Customers" value={customers.length} />
-            <StatCard icon={<BarChart3 size={20} />} label="Inventory Value" value={`PHP ${stats.totalValue.toLocaleString()}`} />
-            <StatCard icon={<ShieldCheck size={20} />} label="Admin Users" value={stats.adminCount} />
+            <StatCard icon={<PackageCheck size={20} />} label="Orders" value={orders.length} />
+            <StatCard icon={<BarChart3 size={20} />} label="Order Revenue" value={`PHP ${stats.orderRevenue.toLocaleString()}`} />
           </section>
 
           {activeSection === "dashboard" && (
@@ -397,6 +490,8 @@ const AdminDashboard = () => {
               customersLoading={customersLoading}
               products={products}
               customers={customers}
+              orders={orders}
+              ordersLoading={ordersLoading}
               stats={stats}
               setActiveSection={setActiveSection}
             />
@@ -419,6 +514,16 @@ const AdminDashboard = () => {
             <CustomersView loading={customersLoading} customers={filteredCustomers} />
           )}
 
+          {activeSection === "orders" && (
+            <OrdersView
+              loading={ordersLoading}
+              orders={filteredOrders}
+              orderStatusFilter={orderStatusFilter}
+              setOrderStatusFilter={setOrderStatusFilter}
+              openOrder={setSelectedOrder}
+            />
+          )}
+
           {activeSection === "reports" && (
             <ReportsView products={products} customers={customers} stats={stats} />
           )}
@@ -428,8 +533,6 @@ const AdminDashboard = () => {
       {formOpen && (
          <ProductFormDrawer
            formData={formData}
-           imageFile={imageFile}
-           onImageUpload={handleImageUpload}
            editingProduct={editingProduct}
            saving={saving}
            onChange={handleChange}
@@ -437,6 +540,15 @@ const AdminDashboard = () => {
            onSubmit={handleSubmit}
          />
        )}
+
+      {selectedOrder && (
+        <AdminOrderTrackingModal
+          order={selectedOrder}
+          saving={statusSaving}
+          onClose={() => setSelectedOrder(null)}
+          onStatusChange={updateOrderStatus}
+        />
+      )}
     </div>
   );
 };
@@ -464,17 +576,17 @@ const SearchInput = ({ value, onChange, placeholder }) => (
   </div>
 );
 
-const DashboardOverview = ({ loading, customersLoading, products, customers, stats, setActiveSection }) => (
+const DashboardOverview = ({ loading, customersLoading, ordersLoading, products, customers, orders, stats, setActiveSection }) => (
   <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_360px]">
     <div className="border border-slate-200 bg-white p-6">
       <h2 className="text-lg font-black uppercase tracking-tight">Live Backend Summary</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Products come from `/api/products`; customers come from `/api/users/users`.
+        Products, customers, and orders are synchronized from the backend.
       </p>
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <ActionTile label="Inventory" value={loading ? "Loading" : `${products.length} items`} onClick={() => setActiveSection("inventory")} />
+        <ActionTile label="Orders" value={ordersLoading ? "Loading" : `${orders.length} orders`} onClick={() => setActiveSection("orders")} />
         <ActionTile label="Customers" value={customersLoading ? "Loading" : `${customers.length} users`} onClick={() => setActiveSection("customers")} />
-        <ActionTile label="Reports" value={stats.topCategory} onClick={() => setActiveSection("reports")} />
       </div>
     </div>
 
@@ -524,6 +636,92 @@ const InventoryView = ({
     </div>
 
     <ProductsTable loading={loading} products={products} openEditForm={openEditForm} deleteProduct={deleteProduct} />
+  </div>
+);
+
+const formatStatus = (status) =>
+  String(status || "pending")
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const OrdersView = ({
+  loading,
+  orders,
+  orderStatusFilter,
+  setOrderStatusFilter,
+  openOrder,
+}) => (
+  <div className="border border-slate-200 bg-white">
+    <div className="flex flex-col gap-4 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h2 className="text-lg font-black uppercase tracking-tight">Order Monitoring</h2>
+        <p className="mt-1 text-sm text-slate-500">Track purchases, purchased items, totals, and fulfillment status.</p>
+      </div>
+
+      <select
+        value={orderStatusFilter}
+        onChange={(e) => setOrderStatusFilter(e.target.value)}
+        className="h-10 border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-widest outline-none focus:border-black"
+      >
+        <option value="All">All Statuses</option>
+        {orderStatusOptions.map((status) => (
+          <option key={status} value={status}>{formatStatus(status)}</option>
+        ))}
+      </select>
+    </div>
+
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[980px] text-left">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+            <th className="px-5 py-4">Order</th>
+            <th className="px-5 py-4">Customer</th>
+            <th className="px-5 py-4">Items</th>
+            <th className="px-5 py-4">Status</th>
+            <th className="px-5 py-4">Total</th>
+            <th className="px-5 py-4 text-right">Tracking</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {loading ? (
+            <TableMessage colSpan={6} message="Loading orders..." />
+          ) : orders.length > 0 ? (
+            orders.map((order) => {
+              const items = Array.isArray(order.items) ? order.items : [];
+              return (
+                <tr key={order.id} className="transition hover:bg-slate-50">
+                  <td className="px-5 py-4">
+                    <p className="text-sm font-black">{order.order_number || `Order #${order.id}`}</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      {new Date(order.created_at).toLocaleString()}
+                    </p>
+                  </td>
+                  <td className="px-5 py-4 text-sm font-semibold text-slate-600">{order.email || `User #${order.user_id}`}</td>
+                  <td className="px-5 py-4">
+                    <p className="text-sm font-black">{items.reduce((acc, item) => acc + Number(item.quantity || 1), 0)} pcs</p>
+                    <p className="mt-1 max-w-xs truncate text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      {items.map((item) => item.name || item.title).filter(Boolean).join(", ") || "No item details"}
+                    </p>
+                  </td>
+                  <td className="px-5 py-4">
+                    <StatusBadge status={order.status} />
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black">PHP {Number(order.total || 0).toLocaleString()}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex justify-end">
+                      <IconButton onClick={() => openOrder(order)} title="Track order" tone="blue"><Eye size={16} /></IconButton>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <TableMessage colSpan={6} message="No orders match your filters." />
+          )}
+        </tbody>
+      </table>
+    </div>
   </div>
 );
 
@@ -649,7 +847,111 @@ const ProductsTable = ({ loading, products, openEditForm, deleteProduct }) => (
   </div>
 );
 
-const ProductFormDrawer = ({ formData, imageFile, onImageUpload, editingProduct, saving, onChange, onClose, onSubmit }) => (
+const StatusBadge = ({ status }) => {
+  const styles = {
+    pending: "border-slate-200 bg-slate-50 text-slate-600",
+    confirmed: "border-blue-100 bg-blue-50 text-blue-700",
+    shipped: "border-violet-100 bg-violet-50 text-violet-700",
+    in_transit: "border-amber-100 bg-amber-50 text-amber-700",
+    delivered: "border-emerald-100 bg-emerald-50 text-emerald-700",
+  };
+
+  return (
+    <span className={`inline-flex border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${styles[status] || styles.pending}`}>
+      {formatStatus(status)}
+    </span>
+  );
+};
+
+const AdminOrderTrackingModal = ({ order, saving, onClose, onStatusChange }) => {
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/50" aria-label="Close order tracking" />
+      <div className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 p-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Order Tracking</p>
+            <h2 className="mt-1 text-2xl font-black uppercase tracking-tight">{order.order_number || `Order #${order.id}`}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center hover:bg-slate-50">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <OrderInfo label="Customer" value={order.email || `User #${order.user_id}`} />
+            <OrderInfo label="Status" value={formatStatus(order.status)} />
+            <OrderInfo label="Total" value={`PHP ${Number(order.total || 0).toLocaleString()}`} />
+          </div>
+
+          <div className="mt-6 border border-slate-200">
+            <div className="border-b border-slate-100 p-4">
+              <h3 className="text-sm font-black uppercase tracking-[0.2em]">Purchased Items</h3>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {items.length > 0 ? (
+                items.map((item, index) => (
+                  <div key={`${item.product_id || item.name}-${index}`} className="flex gap-4 p-4">
+                    <div className="flex h-20 w-16 shrink-0 items-center justify-center bg-slate-100">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name || item.title} className="h-full w-full object-contain" />
+                      ) : (
+                        <Package size={18} className="text-slate-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black">{item.name || item.title || "Purchased item"}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">{item.brand || "No brand"} / {item.variant || "Default"}</p>
+                      <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-400">Qty {item.quantity || 1}</p>
+                    </div>
+                    <p className="shrink-0 text-sm font-black">
+                      PHP {(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="p-6 text-sm font-medium text-slate-400">No item details saved for this order.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 border border-slate-200 p-5">
+            <h3 className="text-sm font-black uppercase tracking-[0.2em]">Fulfillment Status</h3>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-5">
+              {orderStatusOptions.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={saving || order.status === status}
+                  onClick={() => onStatusChange(order.order_number, status)}
+                  className={`min-h-11 border px-3 text-[10px] font-black uppercase tracking-widest transition ${
+                    order.status === status
+                      ? "border-black bg-black text-white"
+                      : "border-slate-200 hover:border-black"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {formatStatus(status)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const OrderInfo = ({ label, value }) => (
+  <div className="bg-slate-50 p-4">
+    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">{label}</p>
+    <p className="mt-2 truncate text-sm font-black">{value}</p>
+  </div>
+);
+
+const ProductFormDrawer = ({ formData, editingProduct, saving, onChange, onClose, onSubmit }) => (
   <div className="fixed inset-0 z-50">
     <button type="button" onClick={onClose} className="absolute inset-0 bg-black/50" aria-label="Close product form" />
     <form onSubmit={onSubmit} className="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
@@ -669,9 +971,7 @@ const ProductFormDrawer = ({ formData, imageFile, onImageUpload, editingProduct,
 
       <div className="flex-1 space-y-5 overflow-y-auto p-6">
         <div className="flex min-h-48 items-center justify-center border border-dashed border-slate-200 bg-slate-50">
-          {imageFile ? (
-             <img src={URL.createObjectURL(imageFile)} alt="Product preview" className="max-h-64 w-full object-contain p-4" />
-           ) : formData.image ? (
+          {formData.image ? (
              <img src={formData.image} alt="Product preview" className="max-h-64 w-full object-contain p-4" />
            ) : (
              <div className="text-center text-slate-400">
@@ -682,6 +982,7 @@ const ProductFormDrawer = ({ formData, imageFile, onImageUpload, editingProduct,
         </div>
 
         <FormInput label="Product Name" name="name" value={formData.name} onChange={onChange} required />
+        <FormInput label="Image URL" name="image" type="url" value={formData.image} onChange={onChange} placeholder="https://example.com/product.png" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormInput label="Brand" name="brand" value={formData.brand} onChange={onChange} required />
           <FormInput label="Price" name="price" type="number" min="0" step="0.01" value={formData.price} onChange={onChange} required />
@@ -704,14 +1005,6 @@ const ProductFormDrawer = ({ formData, imageFile, onImageUpload, editingProduct,
           </label>
           <FormInput label="Sub Category" name="subCategory" value={formData.subCategory} onChange={onChange} />
         </div>
-        <div>
-            <label className="flex h-11 cursor-pointer items-center justify-center gap-2 border border-slate-200 bg-white text-xs font-black uppercase tracking-widest transition hover:border-black">
-              <Upload size={16} />
-              <span>Upload Image</span>
-              <input type="file" accept="image/*" onChange={onImageUpload} className="hidden" />
-            </label>
-           
-          </div>
       </div>
 
       <div className="flex flex-col gap-3 border-t border-slate-100 p-6 sm:flex-row sm:justify-end">

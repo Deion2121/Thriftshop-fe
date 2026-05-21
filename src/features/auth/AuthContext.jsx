@@ -1,6 +1,4 @@
-// src/features/auth/AuthContext.jsx
-
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { userService } from "./userServices";
 
 const AuthContext = createContext(null);
@@ -9,50 +7,28 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ----------------------------------------
-  // Initialize user session
-  // ----------------------------------------
-const initSession = useCallback(async () => {
-  try {
-    const token = localStorage.getItem("accessToken");
-
-    console.log("INIT TOKEN:", token); // 🔍 DEBUG
-
-    if (!token) {
+  const initSession = useCallback(async () => {
+    try {
+      const user = await userService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      if (error.message !== "Failed to fetch") {
+        console.warn("Session initialization failed:", error.message);
+      }
       setCurrentUser(null);
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const user = await userService.getCurrentUser(token);
-
-    setCurrentUser(user);
-  } catch (error) {
-    console.warn("Session initialization failed:", error.message);
-    setCurrentUser(null);
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  }, []);
 
   useEffect(() => {
     initSession();
   }, [initSession]);
 
-  // ----------------------------------------
-  // Login
-  // ----------------------------------------
-  const login = (userData, token) => {
+  const login = (userData) => {
     setCurrentUser(userData);
-
-    // Store token if using JWT
-    if (token) {
-      localStorage.setItem("accessToken", token);
-    }
   };
 
-  // ----------------------------------------
-  // Logout
-  // ----------------------------------------
   const logout = async () => {
     try {
       await userService.logout();
@@ -60,13 +36,9 @@ const initSession = useCallback(async () => {
       console.warn("Logout failed:", error.message);
     } finally {
       setCurrentUser(null);
-      localStorage.removeItem("accessToken"); // remove JWT if any
     }
   };
 
-  // ----------------------------------------
-  // Context value
-  // ----------------------------------------
   const value = {
     user: currentUser,
     currentUser,
@@ -84,9 +56,6 @@ const initSession = useCallback(async () => {
   );
 };
 
-// ----------------------------------------
-// Custom hook
-// ----------------------------------------
 export const useAuth = () => {
   const context = useContext(AuthContext);
 

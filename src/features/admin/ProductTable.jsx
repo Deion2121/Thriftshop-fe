@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import useAuth from "../../hooks/useAuth";
-import api from "../../api/axios";
+import { useAuth } from "../auth/AuthContext";
+import productService from "./productService";
 
 export default function ProductTable() {
 
@@ -12,15 +12,8 @@ export default function ProductTable() {
 
     const fetchProducts = async () => {
 
-      const token = localStorage.getItem("accessToken");
-
-      const res = await api.get("/products", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      setProducts(res.data);
+      const products = await productService.getProducts();
+      setProducts(products);
     };
 
     fetchProducts();

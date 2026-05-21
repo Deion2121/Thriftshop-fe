@@ -186,7 +186,7 @@ const isLocalOrRemoteImage = (image) =>
     image.startsWith("data:image"));
 
 export const resolveProductImages = (product = {}) => {
-  const image = product.image || product.img;
+  const image = product.image || product.image_url || product.img;
 
   if (isLocalOrRemoteImage(image)) {
     return {
@@ -234,3 +234,13 @@ export const formatProductForFrontend = (product = {}) => {
     ...images,
   };
 };
+
+export const fallbackProducts = [
+  { id: 101, name: "Nike Dunk Low", brand: "Nike", category: "Shoes", subCategory: "Lifestyle", price: 120 },
+  { id: 102, name: "Adidas Spezial", brand: "Adidas", category: "Shoes", subCategory: "Lifestyle", price: 110 },
+  { id: 103, name: "Carhartt Hoodie", brand: "Carhartt", category: "Men", subCategory: "Hoodies", price: 85 },
+  { id: 104, name: "Nike Graphic Tee", brand: "Nike", category: "Men", subCategory: "T-Shirts", price: 45 },
+  { id: 105, name: "Adidas Vintage Tee", brand: "Adidas", category: "Women", subCategory: "Tops", price: 40 },
+  { id: 106, name: "Carhartt Utility Pants", brand: "Carhartt", category: "Men", subCategory: "Pants", price: 95 },
+  { id: 107, name: "New Balance Basic Tee", brand: "New Balance", category: "Men", subCategory: "T-Shirts", price: 35 },
+].map(formatProductForFrontend);
