@@ -2,15 +2,32 @@ import React, { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ShoppingBag, Sparkles } from "lucide-react";
 
-const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist }) => {
+const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist, onOpenDetails }) => {
   const [selectedVariant, setSelectedVariant] = useState(
     product.variants?.[0] || { image: product.img, colorName: "Default" }
   );
 
   const sizes = product.shoeSizes?.length ? product.shoeSizes : product.sizes;
+  const openDetails = () => onOpenDetails?.({ ...product, selectedVariant });
+  const stopCardClick = (event) => event.stopPropagation();
+  const handleKeyDown = (event) => {
+    if (event.target !== event.currentTarget) return;
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetails();
+    }
+  };
 
   return (
-    <article className="group relative flex flex-col">
+    <article
+      className="group relative flex cursor-pointer flex-col"
+      role="button"
+      tabIndex={0}
+      onClick={openDetails}
+      onKeyDown={handleKeyDown}
+      aria-label={`View details for ${product.title}`}
+    >
       <div className="relative aspect-3/4 overflow-hidden border border-black/5 bg-[#f2f2ef]">
         <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 bg-white/90 px-2.5 py-2 text-[8px] font-black uppercase tracking-[0.16em] text-black shadow-sm backdrop-blur">
           <Sparkles size={11} /> Picked
@@ -31,7 +48,10 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
 
         <button
           type="button"
-          onClick={() => toggleWishlist?.(product)}
+          onClick={(event) => {
+            stopCardClick(event);
+            toggleWishlist?.(product);
+          }}
           className={`absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center bg-white shadow-sm transition hover:bg-black hover:text-white ${
             isWishlisted ? "text-red-500" : "text-black"
           }`}
@@ -42,7 +62,10 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
 
         <motion.button
           type="button"
-          onClick={() => addToCart({ ...product, selectedVariant })}
+          onClick={(event) => {
+            stopCardClick(event);
+            addToCart({ ...product, selectedVariant });
+          }}
           initial={{ y: 8, opacity: 0.92 }}
           animate={{ y: 0, opacity: 1 }}
           className="absolute inset-x-3 bottom-3 flex min-h-11 items-center justify-center gap-2 bg-black py-3 text-white shadow-xl transition hover:bg-zinc-800"
@@ -73,6 +96,7 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
               <button
                 key={variant.colorName}
                 type="button"
+                onClick={stopCardClick}
                 onMouseEnter={() => setSelectedVariant(variant)}
                 onFocus={() => setSelectedVariant(variant)}
                 className={`h-4 w-4 rounded-full border transition-all duration-300 ${

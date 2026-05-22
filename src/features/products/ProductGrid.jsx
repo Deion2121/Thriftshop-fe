@@ -1,7 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, RefreshCcw, SlidersHorizontal, SearchX, Shirt } from "lucide-react";
 import ProductCard from "./ProductCard";
+import ProductDetailModal from "./ProductDetailModal";
 
 const sortProducts = (products, sort) => {
   const list = [...products];
@@ -29,18 +30,30 @@ const ProductGrid = ({
   toggleWishlist,
   onClearFilters,
 }) => {
-  const sortedProducts = useMemo(
-    () => sortProducts(products, filters.sort),
-    [products, filters.sort]
-  );
+   const [selectedProduct, setSelectedProduct] = useState(null);
+   const normalize = (value) => String(value || "").trim().toLowerCase();
+   const filteredAndSortedProducts = useMemo(() => {
+     // Filter the products
+     const filtered = products.filter((product) => {
+       const matchBrand = filters.brand === "All" || normalize(product.brand) === normalize(filters.brand);
+       const matchCategory = filters.category === "All" || normalize(product.category) === normalize(filters.category);
+       const matchSub = filters.subCategory === "All" || normalize(product.subCategory) === normalize(filters.subCategory);
+       const matchSize = !filters.size || product.sizes?.map(normalize).includes(normalize(filters.size));
+       const matchShoeSize = !filters.shoeSize || product.shoeSizes?.map(normalize).includes(normalize(filters.shoeSize));
+       return matchBrand && matchCategory && matchSub && matchSize && matchShoeSize;
+     });
 
-  const activeFilters = [
-    filters.brand !== "All" && filters.brand,
-    filters.category !== "All" && filters.category,
-    filters.subCategory !== "All" && filters.subCategory,
-    filters.size,
-    filters.shoeSize,
-  ].filter(Boolean);
+     // Sort the filtered products
+     return sortProducts(filtered, filters.sort);
+   }, [products, filters]);
+
+   const activeFilters = [
+     filters.brand !== "All" && filters.brand,
+     filters.category !== "All" && filters.category,
+     filters.subCategory !== "All" && filters.subCategory,
+     filters.size,
+     filters.shoeSize,
+   ].filter(Boolean);
 
   const wishlistKeys = new Set(wishlistItems.map((item) => String(item.id ?? item.title)));
 
@@ -89,66 +102,74 @@ const ProductGrid = ({
         </div>
       )}
 
-      {loading && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-12 md:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <div key={index} className="animate-pulse">
-              <div className="aspect-3/4 bg-[#f1f1ee]" />
-              <div className="mt-4 h-3 w-2/3 bg-[#f1f1ee]" />
-              <div className="mt-3 h-3 w-1/3 bg-[#f1f1ee]" />
-            </div>
-          ))}
-        </div>
-      )}
+       {loading && (
+         <div className="grid grid-cols-2 gap-x-4 gap-y-12 md:grid-cols-3 lg:grid-cols-4">
+           {Array.from({ length: 8 }).map((_, index) => (
+             <div key={index} className="animate-pulse">
+               <div className="aspect-3/4 bg-[#f1f1ee]" />
+               <div className="mt-4 h-3 w-2/3 bg-[#f1f1ee]" />
+               <div className="mt-3 h-3 w-1/3 bg-[#f1f1ee]" />
+             </div>
+           ))}
+         </div>
+       )}
 
-      {!loading && !error && (
-      <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-y-10">
-        <AnimatePresence mode="popLayout">
-          {sortedProducts.map((product, index) => (
-            <motion.div
-              layout
-              key={product.id ?? product.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{
-                duration: 0.35,
-                delay: index * 0.03,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-            >
-              <ProductCard
-                product={product}
-                addToCart={addToCart}
-                isWishlisted={wishlistKeys.has(String(product.id ?? product.title))}
-                toggleWishlist={toggleWishlist}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-      )}
+       {!loading && !error && (
+       <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-y-10">
+         <AnimatePresence mode="popLayout">
+           {filteredAndSortedProducts.map((product, index) => (
+             <motion.div
+               layout
+               key={product.id ?? product.title}
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.96 }}
+               transition={{
+                 duration: 0.35,
+                 delay: index * 0.03,
+                 ease: [0.22, 1, 0.36, 1],
+               }}
+             >
+               <ProductCard
+                 product={product}
+                 addToCart={addToCart}
+                 isWishlisted={wishlistKeys.has(String(product.id ?? product.title))}
+                 toggleWishlist={toggleWishlist}
+                 onOpenDetails={setSelectedProduct}
+               />
+             </motion.div>
+           ))}
+         </AnimatePresence>
+       </div>
+       )}
 
-      {!loading && !error && sortedProducts.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-10 flex flex-col items-center border-t border-gray-100 py-32 text-center"
-        >
-          <SearchX size={34} className="mb-5 text-gray-300" />
-          <h2 className="text-xl font-black uppercase italic tracking-tight">No products found</h2>
-          <p className="mt-2 max-w-sm text-xs leading-6 text-gray-500">
-            Try a broader search, remove a size, or clear the active filters.
-          </p>
-          <button
-            type="button"
-            onClick={onClearFilters}
-            className="mt-6 border border-black px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition hover:bg-black hover:text-white"
-          >
-            Clear Filters
-          </button>
-        </motion.div>
-      )}
+       {!loading && !error && filteredAndSortedProducts.length === 0 && (
+         <motion.div
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           className="mt-10 flex flex-col items-center border-t border-gray-100 py-32 text-center"
+         >
+           <SearchX size={34} className="mb-5 text-gray-300" />
+           <h2 className="text-xl font-black uppercase italic tracking-tight">No products found</h2>
+           <p className="mt-2 max-w-sm text-xs leading-6 text-gray-500">
+             Try a broader search, remove a size, or clear the active filters.
+           </p>
+           <button
+             type="button"
+             onClick={onClearFilters}
+             className="mt-6 border border-black px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition hover:bg-black hover:text-white"
+           >
+             Clear Filters
+           </button>
+         </motion.div>
+       )}
+
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={Boolean(selectedProduct)}
+        onClose={() => setSelectedProduct(null)}
+        addToCart={addToCart}
+      />
     </div>
   );
 };

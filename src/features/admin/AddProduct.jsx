@@ -7,6 +7,7 @@ export default function AddProduct() {
     category: "",
     subCategory: "",
     price: "",
+    sizes: "",
     image: "",
   });
   const [preview, setPreview] = useState(null);
@@ -37,14 +38,14 @@ export default function AddProduct() {
     <form className="space-y-4 bg-white p-6 rounded-xl border border-gray-200">
       <h1 className="text-xl font-bold">Add Product</h1>
 
-      {["name", "brand", "category", "subCategory", "price"].map((field) => (
+      {["name", "brand", "category", "subCategory", "price", "sizes"].map((field) => (
         <input
           key={field}
           name={field}
           type={field === "price" ? "number" : "text"}
           value={formData[field]}
           onChange={handleChange}
-          placeholder={field}
+          placeholder={field === "sizes" ? "sizes (S, M, L, XL)" : field}
           className="w-full rounded-lg border border-gray-300 px-3 py-2"
         />
       ))}

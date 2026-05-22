@@ -16,6 +16,7 @@ import {
   RefreshCcw,
   Save,
   Search,
+  Settings as SettingsIcon,
   ShieldCheck,
   ShoppingCart,
   Trash2,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { csrfHeaders } from "../../utils/apiSecurity";
+import SettingsPanel from "./AdminSettings";
 
 const emptyProduct = {
   name: "",
@@ -32,6 +34,7 @@ const emptyProduct = {
   category: "",
   subCategory: "",
   price: "",
+  sizes: "",
   image: "",
 };
 
@@ -41,6 +44,7 @@ const sections = [
   { id: "orders", label: "Orders", icon: Truck },
   { id: "customers", label: "Customers", icon: Users },
   { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
 const categoryOptions = ["Men", "Women", "Kids", "Shoes", "Sale", "General"];
@@ -60,11 +64,17 @@ const orderStatusOptions = ["pending", "confirmed", "shipped", "in_transit", "de
 const normalizeProduct = (product = {}) => ({
   ...product,
   image: product.image || product.image_url || "",
+  sizes: Array.isArray(product.sizes)
+    ? product.sizes
+    : String(product.sizes || "")
+        .split(",")
+        .map((size) => size.trim())
+        .filter(Boolean),
 });
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ initialSection = "dashboard" }) => {
   const { logout, user } = useAuth();
-  const [activeSection, setActiveSection] = useState("dashboard");
+  const [activeSection, setActiveSection] = useState(initialSection);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -160,6 +170,10 @@ const AdminDashboard = () => {
     fetchOrders();
   }, []);
 
+  useEffect(() => {
+    setActiveSection(initialSection);
+  }, [initialSection]);
+
   const openCreateForm = () => {
     setEditingProduct(null);
     setFormData(emptyProduct);
@@ -176,6 +190,7 @@ const AdminDashboard = () => {
       category: product.category || "",
       subCategory: product.subCategory || "",
       price: product.price ?? "",
+      sizes: Array.isArray(product.sizes) ? product.sizes.join(", ") : product.sizes || "",
       image: product.image || product.image_url || "",
     });
     setFormOpen(true);
@@ -208,6 +223,10 @@ const AdminDashboard = () => {
       category: formData.category.trim(),
       price: Number(formData.price),
       subCategory: formData.subCategory.trim() || "General",
+      sizes: formData.sizes
+        .split(",")
+        .map((size) => size.trim())
+        .filter(Boolean),
       image: formData.image.trim(),
     };
 
@@ -526,6 +545,10 @@ const AdminDashboard = () => {
 
           {activeSection === "reports" && (
             <ReportsView products={products} customers={customers} stats={stats} />
+          )}
+
+          {activeSection === "settings" && (
+            <SettingsPanel />
           )}
         </div>
       </main>
@@ -1005,6 +1028,13 @@ const ProductFormDrawer = ({ formData, editingProduct, saving, onChange, onClose
           </label>
           <FormInput label="Sub Category" name="subCategory" value={formData.subCategory} onChange={onChange} />
         </div>
+        <FormInput
+          label="Sizes"
+          name="sizes"
+          value={formData.sizes}
+          onChange={onChange}
+          placeholder="S, M, L, XL"
+        />
       </div>
 
       <div className="flex flex-col gap-3 border-t border-slate-100 p-6 sm:flex-row sm:justify-end">

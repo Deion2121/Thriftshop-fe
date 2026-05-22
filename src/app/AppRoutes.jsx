@@ -350,6 +350,7 @@ function AppRoutes() {
 
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/settings" element={<AdminDashboard initialSection="settings" />} />
           </Route>
 
           <Route path="/" element={<ShopLayout />} />

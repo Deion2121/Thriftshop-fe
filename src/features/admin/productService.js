@@ -4,9 +4,19 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const PRODUCTS_API_URL = `${API_BASE}/api/products`;
 
+const normalizeSizes = (sizes) => {
+  if (Array.isArray(sizes)) return sizes;
+
+  return String(sizes || "")
+    .split(",")
+    .map((size) => size.trim())
+    .filter(Boolean);
+};
+
 const normalizeProduct = (product = {}) => ({
   ...product,
   image: product.image || product.image_url || "",
+  sizes: normalizeSizes(product.sizes),
 });
 
 const authHeaders = () => {
@@ -31,7 +41,7 @@ export const productService = {
       throw new Error(err.message || "Failed to add product");
     }
 
-    return res.json();
+    return normalizeProduct(await res.json());
   },
 
   // Delete a product
