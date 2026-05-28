@@ -118,20 +118,24 @@ const ProductDetailModal = ({ product, isOpen, onClose, addToCart }) => {
                     <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-gray-400">
                       <Palette size={13} /> Color
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3" role="radiogroup" aria-label={`${product.title} color`}>
                       {product.variants.map((variant) => (
                         <button
                           key={variant.colorName}
                           type="button"
                           onClick={() => setSelectedVariant(variant)}
-                          className={`flex min-h-10 items-center gap-2 border px-3 text-[10px] font-black uppercase tracking-widest transition ${
+                          role="radio"
+                          aria-checked={selectedVariant?.colorName === variant.colorName}
+                          className={`flex min-h-11 items-center gap-2 border px-3 text-[10px] font-black uppercase tracking-widest transition ${
                             selectedVariant?.colorName === variant.colorName
-                              ? "border-black bg-black text-white"
+                              ? "border-black bg-[#f7f7f4] text-black ring-2 ring-black"
                               : "border-black/10 bg-white text-gray-500 hover:border-black hover:text-black"
                           }`}
                         >
                           <span
-                            className="h-3 w-3 rounded-full border border-black/10"
+                            className={`h-5 w-5 rounded-full border border-black/10 ${
+                              selectedVariant?.colorName === variant.colorName ? "ring-2 ring-black/20 ring-offset-2" : ""
+                            }`}
                             style={{ backgroundColor: variant.colorHex }}
                           />
                           {variant.colorName}

@@ -189,9 +189,12 @@ export const resolveProductImages = (product = {}) => {
   const image = product.image || product.image_url || product.img;
 
   if (isLocalOrRemoteImage(image)) {
+    const colorName = product.colorName || product.color_name || "Default";
+    const colorHex = product.colorHex || product.color_hex || "#111111";
+
     return {
       img: image,
-      variants: createVariants([image], [{ colorName: "Default", colorHex: "#111111" }]),
+      variants: createVariants([image], [{ colorName, colorHex }]),
     };
   }
 
@@ -232,8 +235,45 @@ export const formatProductForFrontend = (product = {}) => {
     price: Number(product.price) || 0,
     sizes: product.sizes || (isShoe ? [] : ["S", "M", "L", "XL"]),
     shoeSizes: product.shoeSizes || (isShoe ? ["UK 6", "UK 7", "UK 8", "UK 9", "UK 10"] : []),
+    colorName: product.colorName || product.color_name || "Default",
+    colorHex: product.colorHex || product.color_hex || "#111111",
     ...images,
   };
+};
+
+const normalizeProductName = (value) => String(value || "").trim().toLowerCase();
+
+export const groupProductsForFrontend = (products = []) => {
+  const grouped = new Map();
+
+  products.map(formatProductForFrontend).forEach((product) => {
+    const key = normalizeProductName(product.title);
+    const selectedVariant =
+      product.variants?.find((variant) => variant.colorName === product.colorName) ||
+      product.variants?.[0] || { image: product.img, colorName: product.colorName, colorHex: product.colorHex };
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        ...product,
+        img: selectedVariant.image || product.img,
+        variants: [{ ...selectedVariant, productId: product.id }],
+      });
+      return;
+    }
+
+    const existing = grouped.get(key);
+    const variantWithProduct = { ...selectedVariant, productId: product.id };
+    const variantExists = existing.variants.some(
+      (variant) => normalizeProductName(variant.colorName) === normalizeProductName(variantWithProduct.colorName)
+    );
+
+    grouped.set(key, {
+      ...existing,
+      variants: variantExists ? existing.variants : [...existing.variants, variantWithProduct],
+    });
+  });
+
+  return [...grouped.values()];
 };
 
 export const fallbackProducts = [

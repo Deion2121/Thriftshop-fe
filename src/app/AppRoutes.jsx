@@ -17,7 +17,7 @@ import FilterSidebar from "../features/products/FilterSidebar";
 import CartModal from "../features/cart/CartModal";
 import OrderTrackingModal from "../features/orders/OrderTrackingModal";
 import { useAuth } from "../features/auth/AuthContext";
-import { fallbackProducts, formatProductForFrontend } from "../utils/productImages";
+import { fallbackProducts, groupProductsForFrontend } from "../utils/productImages";
 import AdminRoute from "./AdminRoutes";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/products`;
@@ -33,6 +33,10 @@ const defaultFilters = {
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 const productKey = (product) => String(product?.id ?? product?.title ?? "");
+const cartItemKey = (product) => {
+  const productName = normalize(product?.title || product?.name);
+  return productName;
+};
 const shopChips = ["Men", "Women", "Shoes", "Sale"];
 
 const readStoredList = (key) => {
@@ -44,10 +48,60 @@ const readStoredList = (key) => {
   }
 };
 
+const mergeVariants = (currentVariants = [], incomingVariants = [], selectedVariant) => {
+  const variantsByName = new Map();
+
+  [...currentVariants, ...incomingVariants, selectedVariant]
+    .filter(Boolean)
+    .forEach((variant) => {
+      const key = normalize(variant.colorName || variant.color || "Default");
+      if (!variantsByName.has(key)) variantsByName.set(key, variant);
+    });
+
+  return [...variantsByName.values()];
+};
+
+const compressCartItems = (items) =>
+  items.reduce((merged, item) => {
+    const key = cartItemKey(item);
+    const existingIndex = merged.findIndex((mergedItem) => cartItemKey(mergedItem) === key);
+    const quantity = Number(item.quantity || 1);
+
+    if (existingIndex >= 0) {
+      const next = [...merged];
+      next[existingIndex] = {
+        ...next[existingIndex],
+        variants: mergeVariants(
+          next[existingIndex].variants,
+          item.variants,
+          item.selectedVariant
+        ),
+        selectedVariant: item.selectedVariant || next[existingIndex].selectedVariant,
+        quantity: Math.min(20, Number(next[existingIndex].quantity || 1) + quantity),
+      };
+      return next;
+    }
+
+    const selectedVariant =
+      item.selectedVariant ||
+      item.variants?.[0] || { image: item.img, colorName: "Default", colorHex: "#111111" };
+
+    return [
+      ...merged,
+      {
+        ...item,
+        variants: mergeVariants(item.variants, [], selectedVariant),
+        selectedVariant,
+        quantity: Math.min(20, Math.max(1, quantity)),
+      },
+    ];
+  }, [])
+    .sort((a, b) => cartItemKey(a).localeCompare(cartItemKey(b)));
+
 function AppRoutes() {
   const { currentUser } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [cartItems, setCartItems] = useState(() => readStoredList("cartItems"));
+  const [cartItems, setCartItems] = useState(() => compressCartItems(readStoredList("cartItems")));
   const [wishlistItems, setWishlistItems] = useState(() => readStoredList("wishlistItems"));
   const [cartModalOpen, setCartModalOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
@@ -71,7 +125,7 @@ function AppRoutes() {
         throw new Error(data?.message || "Could not load products.");
       }
 
-      const formatted = Array.isArray(data) ? data.map(formatProductForFrontend) : [];
+      const formatted = Array.isArray(data) ? groupProductsForFrontend(data) : [];
       setAllProducts(formatted);
     } catch (err) {
       console.warn("Using fallback products because the API is unavailable:", err.message);
@@ -92,7 +146,16 @@ function AppRoutes() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("cartItems", JSON.stringify(cartItems));
+    const arrangedCartItems = compressCartItems(cartItems);
+    const currentCart = JSON.stringify(cartItems);
+    const nextCart = JSON.stringify(arrangedCartItems);
+
+    if (currentCart !== nextCart) {
+      setCartItems(arrangedCartItems);
+      return;
+    }
+
+    localStorage.setItem("cartItems", nextCart);
   }, [cartItems]);
 
   useEffect(() => {
@@ -150,24 +213,7 @@ function AppRoutes() {
   };
 
   const addToCart = (product) => {
-    setCartItems((prev) => {
-      const variantName = product.selectedVariant?.colorName || "Default";
-      const existingItem = prev.find(
-        (item) =>
-          item.id === product.id &&
-          (item.selectedVariant?.colorName || "Default") === variantName
-      );
-
-      if (existingItem) {
-        return prev.map((item) =>
-          item.id === product.id && (item.selectedVariant?.colorName || "Default") === variantName
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-
-      return [...prev, { ...product, quantity: 1 }];
-    });
+    setCartItems((prev) => compressCartItems([...prev, { ...product, quantity: 1 }]));
 
     setCartModalOpen(true);
   };

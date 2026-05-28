@@ -4,7 +4,7 @@ import { Heart, ShoppingBag, Sparkles } from "lucide-react";
 
 const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist, onOpenDetails }) => {
   const [selectedVariant, setSelectedVariant] = useState(
-    product.variants?.[0] || { image: product.img, colorName: "Default" }
+    product.variants?.[0] || { image: product.img, colorName: "Default", colorHex: "#111111" }
   );
 
   const sizes = product.shoeSizes?.length ? product.shoeSizes : product.sizes;
@@ -91,23 +91,32 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist,
         </div>
 
         {product.variants?.length > 0 && (
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2" role="radiogroup" aria-label={`${product.title} color`}>
             {product.variants.map((variant) => (
               <button
                 key={variant.colorName}
                 type="button"
-                onClick={stopCardClick}
+                onClick={(event) => {
+                  stopCardClick(event);
+                  setSelectedVariant(variant);
+                }}
                 onMouseEnter={() => setSelectedVariant(variant)}
                 onFocus={() => setSelectedVariant(variant)}
-                className={`h-4 w-4 rounded-full border transition-all duration-300 ${
+                role="radio"
+                aria-checked={selectedVariant.colorName === variant.colorName}
+                className={`flex h-7 w-7 items-center justify-center rounded-full border bg-white transition-all duration-300 ${
                   selectedVariant.colorName === variant.colorName
-                    ? "scale-125 border-black ring-1 ring-black/20 ring-offset-1"
-                    : "border-transparent"
+                    ? "border-black ring-2 ring-black/20 ring-offset-1"
+                    : "border-black/10 hover:border-black/50"
                 }`}
-                style={{ backgroundColor: variant.colorHex }}
                 title={variant.colorName}
                 aria-label={`Select ${variant.colorName}`}
-              />
+              >
+                <span
+                  className="h-4 w-4 rounded-full border border-black/10"
+                  style={{ backgroundColor: variant.colorHex }}
+                />
+              </button>
             ))}
           </div>
         )}

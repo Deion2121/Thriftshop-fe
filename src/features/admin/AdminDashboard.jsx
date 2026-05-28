@@ -36,6 +36,9 @@ const emptyProduct = {
   price: "",
   sizes: "",
   image: "",
+  colorName: "Default",
+  colorHex: "#111111",
+  existingProductId: "",
 };
 
 const sections = [
@@ -64,6 +67,8 @@ const orderStatusOptions = ["pending", "confirmed", "shipped", "in_transit", "de
 const normalizeProduct = (product = {}) => ({
   ...product,
   image: product.image || product.image_url || "",
+  colorName: product.colorName || product.color_name || "Default",
+  colorHex: product.colorHex || product.color_hex || "#111111",
   sizes: Array.isArray(product.sizes)
     ? product.sizes
     : String(product.sizes || "")
@@ -192,6 +197,9 @@ const AdminDashboard = ({ initialSection = "dashboard" }) => {
       price: product.price ?? "",
       sizes: Array.isArray(product.sizes) ? product.sizes.join(", ") : product.sizes || "",
       image: product.image || product.image_url || "",
+      colorName: product.colorName || product.color_name || "Default",
+      colorHex: product.colorHex || product.color_hex || "#111111",
+      existingProductId: "",
     });
     setFormOpen(true);
     setError("");
@@ -206,6 +214,29 @@ const AdminDashboard = ({ initialSection = "dashboard" }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "existingProductId") {
+      const selectedProduct = products.find((product) => String(product.id) === value);
+
+      setFormData((prev) => ({
+        ...prev,
+        existingProductId: value,
+        ...(selectedProduct
+          ? {
+              name: selectedProduct.name || "",
+              brand: selectedProduct.brand || "",
+              category: selectedProduct.category || "",
+              subCategory: selectedProduct.subCategory || "",
+              price: selectedProduct.price ?? "",
+              sizes: Array.isArray(selectedProduct.sizes)
+                ? selectedProduct.sizes.join(", ")
+                : selectedProduct.sizes || "",
+            }
+          : {}),
+      }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
   const handleSubmit = async (e) => {
@@ -228,7 +259,11 @@ const AdminDashboard = ({ initialSection = "dashboard" }) => {
         .map((size) => size.trim())
         .filter(Boolean),
       image: formData.image.trim(),
+      colorName: formData.colorName.trim() || "Default",
+      colorHex: formData.colorHex || "#111111",
     };
+
+    delete payload.existingProductId;
 
     try {
       setSaving(true);
@@ -557,6 +592,7 @@ const AdminDashboard = ({ initialSection = "dashboard" }) => {
          <ProductFormDrawer
            formData={formData}
            editingProduct={editingProduct}
+           products={products}
            saving={saving}
            onChange={handleChange}
            onClose={closeForm}
@@ -844,6 +880,15 @@ const ProductsTable = ({ loading, products, openEditForm, deleteProduct }) => (
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                       ID #{product.id} / {product.subCategory || "General"}
                     </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border border-slate-200"
+                        style={{ backgroundColor: product.colorHex || "#111111" }}
+                      />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        {product.colorName || "Default"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -974,7 +1019,7 @@ const OrderInfo = ({ label, value }) => (
   </div>
 );
 
-const ProductFormDrawer = ({ formData, editingProduct, saving, onChange, onClose, onSubmit }) => (
+const ProductFormDrawer = ({ formData, editingProduct, products, saving, onChange, onClose, onSubmit }) => (
   <div className="fixed inset-0 z-50">
     <button type="button" onClick={onClose} className="absolute inset-0 bg-black/50" aria-label="Close product form" />
     <form onSubmit={onSubmit} className="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
@@ -993,6 +1038,25 @@ const ProductFormDrawer = ({ formData, editingProduct, saving, onChange, onClose
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto p-6">
+        {!editingProduct && products.length > 0 && (
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Add color to existing product</span>
+            <select
+              name="existingProductId"
+              value={formData.existingProductId}
+              onChange={onChange}
+              className="mt-2 h-11 w-full border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-black"
+            >
+              <option value="">Create as new product card</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} / {product.brand}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <div className="flex min-h-48 items-center justify-center border border-dashed border-slate-200 bg-slate-50">
           {formData.image ? (
              <img src={formData.image} alt="Product preview" className="max-h-64 w-full object-contain p-4" />
@@ -1005,7 +1069,21 @@ const ProductFormDrawer = ({ formData, editingProduct, saving, onChange, onClose
         </div>
 
         <FormInput label="Product Name" name="name" value={formData.name} onChange={onChange} required />
-        <FormInput label="Image URL" name="image" type="url" value={formData.image} onChange={onChange} placeholder="https://example.com/product.png" />
+        <FormInput label="Image URL for selected color" name="image" type="url" value={formData.image} onChange={onChange} placeholder="https://example.com/product-color.png" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_96px]">
+          <FormInput label="Color Name" name="colorName" value={formData.colorName} onChange={onChange} placeholder="Black" />
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Color</span>
+            <input
+              name="colorHex"
+              type="color"
+              value={formData.colorHex || "#111111"}
+              onChange={onChange}
+              className="mt-2 h-11 w-full border border-slate-200 bg-white p-1 outline-none transition focus:border-black"
+              aria-label="Pick product color"
+            />
+          </label>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormInput label="Brand" name="brand" value={formData.brand} onChange={onChange} required />
           <FormInput label="Price" name="price" type="number" min="0" step="0.01" value={formData.price} onChange={onChange} required />
