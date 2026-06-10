@@ -1,7 +1,7 @@
-// src/features/auth/AuthContext.jsx
-
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { userService } from "./userServices";
+
+const SESSION_KEY = "tab_session_active";
 
 const AuthContext = createContext(null);
 
@@ -9,64 +9,68 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ----------------------------------------
-  // Initialize user session
-  // ----------------------------------------
-const initSession = useCallback(async () => {
-  try {
-    const token = localStorage.getItem("accessToken");
-
-    console.log("INIT TOKEN:", token); // 🔍 DEBUG
-
-    if (!token) {
-      setCurrentUser(null);
-      return;
-    }
-
-    const user = await userService.getCurrentUser(token);
-
-    setCurrentUser(user);
-  } catch (error) {
-    console.warn("Session initialization failed:", error.message);
-    setCurrentUser(null);
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-  useEffect(() => {
-    initSession();
-  }, [initSession]);
-
-  // ----------------------------------------
-  // Login
-  // ----------------------------------------
-  const login = (userData, token) => {
+  const login = (userData) => {
     setCurrentUser(userData);
-
-    // Store token if using JWT
-    if (token) {
-      localStorage.setItem("accessToken", token);
-    }
+    sessionStorage.setItem(SESSION_KEY, "true");
   };
 
-  // ----------------------------------------
-  // Logout
-  // ----------------------------------------
   const logout = async () => {
     try {
       await userService.logout();
     } catch (error) {
       console.warn("Logout failed:", error.message);
     } finally {
+      sessionStorage.removeItem(SESSION_KEY);
       setCurrentUser(null);
-      localStorage.removeItem("accessToken"); // remove JWT if any
     }
   };
 
-  // ----------------------------------------
-  // Context value
-  // ----------------------------------------
+  const initSession = useCallback(async () => {
+    // Check if tab was closed and reopened (sessionStorage cleared)
+    const sessionValid = sessionStorage.getItem(SESSION_KEY) === "true";
+
+    if (!sessionValid) {
+      // Tab was closed - logout to invalidate server session
+      try {
+        await userService.logout();
+      } catch (error) {
+        // Ignore if already logged out
+      }
+    }
+
+    try {
+      const user = await userService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      if (error.message !== "Failed to fetch") {
+        console.warn("Session initialization failed:", error.message);
+      }
+      setCurrentUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    initSession();
+
+    const handleBeforeUnload = () => {
+      sessionStorage.removeItem(SESSION_KEY);
+    };
+
+    const handlePageHide = () => {
+      sessionStorage.removeItem(SESSION_KEY);
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [initSession]);
+
   const value = {
     user: currentUser,
     currentUser,
@@ -84,9 +88,6 @@ const initSession = useCallback(async () => {
   );
 };
 
-// ----------------------------------------
-// Custom hook
-// ----------------------------------------
 export const useAuth = () => {
   const context = useContext(AuthContext);
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart, LogOut, Menu, Search, ShoppingCart, User, X } from "lucide-react";
+import { GitCompare, Heart, LogOut, Menu, Search, ShoppingCart, User, X } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import logo from "../../assets/flogo.png";
 
@@ -32,9 +32,10 @@ const CATEGORY_DATA = {
 
 const NAV_ITEMS = Object.keys(CATEGORY_DATA);
 
-function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, refreshPage, handleSearch }) {
+function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, refreshPage, handleSearch, compareProducts = [] }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const compareCount = compareProducts.length;
 
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -176,15 +177,15 @@ function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, re
                       exit={{ opacity: 0, y: -10 }}
                       className="absolute right-0 mt-3 w-52 bg-black border border-white/10 rounded-xl shadow-xl overflow-hidden"
                     >
-                      {user.role === "admin" && (
-                        <button
-                          type="button"
-                          onClick={() => navigate("/admin")}
-                          className="block w-full text-left px-4 py-3 hover:bg-white/10"
-                        >
-                          Admin Dashboard
-                        </button>
-                      )}
+                       {user.role === "admin" && (
+                         <button
+                           type="button"
+                           onClick={() => navigate("/admin")}
+                           className="block w-full text-left px-4 py-3 text-blue-400 hover:bg-blue-500/20 hover:text-white"
+                         >
+                           Admin Dashboard
+                         </button>
+                       )}
                       <button
                         type="button"
                         onClick={handleLogout}
@@ -208,13 +209,24 @@ function Header({ cartItems = [], wishlistCount = 0, openCartModal, openShop, re
             )}
 
             <div className="relative hidden sm:block" aria-label="Wishlist count">
-              <Heart size={20} />
+              <button type="button" onClick={() => navigate("/wishlist")} className="hover:scale-110 transition">
+                <Heart size={20} />
+              </button>
               {wishlistCount > 0 && (
                 <span className="absolute -top-2 -right-2 bg-white text-black text-[9px] rounded-full h-4 min-w-4 px-1 flex items-center justify-center">
                   {wishlistCount}
                 </span>
               )}
             </div>
+
+            {compareCount > 0 && (
+              <div className="relative hidden sm:block" aria-label="Compare count">
+                <GitCompare size={20} />
+                <span className="absolute -top-2 -right-2 bg-amber-400 text-black text-[9px] rounded-full h-4 min-w-4 px-1 flex items-center justify-center">
+                  {compareCount}
+                </span>
+              </div>
+            )}
 
             <button type="button" className="relative hover:scale-110 transition" onClick={openCartModal} aria-label="Open cart">
               <ShoppingCart size={20} />

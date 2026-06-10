@@ -1,3 +1,5 @@
+import { csrfHeaders } from "../../utils/apiSecurity";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const request = async (endpoint, options = {}) => {
@@ -5,6 +7,7 @@ const request = async (endpoint, options = {}) => {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...csrfHeaders(),
       ...(options.headers || {}),
     },
     ...options,

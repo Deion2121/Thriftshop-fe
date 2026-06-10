@@ -1,17 +1,14 @@
+import { csrfHeaders } from "../../utils/apiSecurity";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export const userService = {
-  getCurrentUser: async (token) => {
-    if (!token) {
-      return null;
-    }
-
+  getCurrentUser: async () => {
     const res = await fetch(`${API_URL}/api/users/me`, {
       method: "GET",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -29,6 +26,9 @@ export const userService = {
     await fetch(`${API_URL}/api/users/logout`, {
       method: "POST",
       credentials: "include",
+      headers: {
+        ...csrfHeaders(),
+      },
     });
   },
 };

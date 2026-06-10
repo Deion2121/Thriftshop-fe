@@ -35,11 +35,11 @@ const Login = () => {
         password,
       });
 
-      if (!res?.token || !res?.user) {
+      if (!res?.user) {
         throw new Error("Invalid login response from server");
       }
 
-      login(res.user, res.token);
+      login(res.user);
       navigate(res.user.role === "admin" ? "/admin" : "/");
     } catch (err) {
       setError(err.message || "Login failed");

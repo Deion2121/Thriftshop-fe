@@ -1,13 +1,28 @@
+import { csrfHeaders } from "../../utils/apiSecurity";
+
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 const PRODUCTS_API_URL = `${API_BASE}/api/products`;
 
-const getToken = () => localStorage.getItem("accessToken");
+const normalizeSizes = (sizes) => {
+  if (Array.isArray(sizes)) return sizes;
+
+  return String(sizes || "")
+    .split(",")
+    .map((size) => size.trim())
+    .filter(Boolean);
+};
+
+const normalizeProduct = (product = {}) => ({
+  ...product,
+  image: product.image || product.image_url || "",
+  sizes: normalizeSizes(product.sizes),
+});
 
 const authHeaders = () => {
-  const token = getToken();
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...csrfHeaders(),
   };
 };
 
@@ -26,7 +41,7 @@ export const productService = {
       throw new Error(err.message || "Failed to add product");
     }
 
-    return res.json();
+    return normalizeProduct(await res.json());
   },
 
   // Delete a product
@@ -42,7 +57,7 @@ export const productService = {
       throw new Error(err.message || "Failed to delete product");
     }
 
-    return res.json();
+    return normalizeProduct(await res.json());
   },
 
   // Update a product
@@ -59,7 +74,7 @@ export const productService = {
       throw new Error(err.message || "Failed to update product");
     }
 
-    return res.json();
+    return normalizeProduct(await res.json());
   },
 
   // Get all products
@@ -74,7 +89,8 @@ export const productService = {
       throw new Error(err.message || "Failed to fetch products");
     }
 
-    return res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(normalizeProduct) : [];
   },
 };
 

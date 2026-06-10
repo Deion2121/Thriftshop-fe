@@ -1,22 +1,53 @@
 import React, { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart, ShoppingBag } from "lucide-react";
+import { Heart, ShoppingBag, Sparkles, GitCompare } from "lucide-react";
 
-const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist }) => {
+const getColorSwatchStyle = (variant = {}) => {
+  const primary = variant.colorHex || "#111111";
+  const secondary = variant.colorHexSecondary;
+
+  return secondary
+    ? { background: `linear-gradient(135deg, ${primary} 0 50%, ${secondary} 50% 100%)` }
+    : { backgroundColor: primary };
+};
+
+const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist, onOpenDetails, onCompare, isCompared = false }) => {
   const [selectedVariant, setSelectedVariant] = useState(
-    product.variants?.[0] || { image: product.img, colorName: "Default" }
+    product.variants?.[0] || { image: product.img, colorName: "Default", colorHex: "#111111" }
   );
-  const [isHovered, setIsHovered] = useState(false);
 
   const sizes = product.shoeSizes?.length ? product.shoeSizes : product.sizes;
+  const openDetails = () => onOpenDetails?.({ ...product, selectedVariant });
+  const stopCardClick = (event) => event.stopPropagation();
+  const handleKeyDown = (event) => {
+    if (event.target !== event.currentTarget) return;
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetails();
+    }
+  };
 
   return (
-    <div
-      className="group relative flex flex-col"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+    <article
+      className="group relative flex cursor-pointer flex-col"
+      role="button"
+      tabIndex={0}
+      onClick={openDetails}
+      onKeyDown={handleKeyDown}
+      aria-label={`View details for ${product.title}`}
     >
-      <div className="relative aspect-3/4 overflow-hidden bg-[#f6f6f6]">
+      <div className="relative aspect-3/4 overflow-hidden border border-black/5 bg-[#f2f2ef] dark:border-white/10 dark:bg-zinc-900">
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 bg-white/90 px-2.5 py-2 text-[8px] font-black uppercase tracking-[0.16em] text-black shadow-sm backdrop-blur">
+          <Sparkles size={11} /> Picked
+        </div>
+
+        {product.isFeatured && (
+          <div className="absolute right-12 top-3 z-10 flex items-center gap-1 bg-amber-100 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-amber-800">
+            Featured
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           <motion.img
             key={selectedVariant.image}
@@ -26,14 +57,17 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0.85 }}
             transition={{ duration: 0.3 }}
-            className="h-full w-full object-contain transition-transform duration-700 group-hover:scale-105"
+            className="h-full w-full object-contain p-4 transition-transform duration-700 group-hover:scale-105"
           />
         </AnimatePresence>
 
         <button
           type="button"
-          onClick={() => toggleWishlist?.(product)}
-          className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center bg-white shadow-sm transition hover:bg-black hover:text-white ${
+          onClick={(event) => {
+            stopCardClick(event);
+            toggleWishlist?.(product);
+          }}
+          className={`absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center bg-white shadow-sm transition hover:bg-black hover:text-white ${
             isWishlisted ? "text-red-500" : "text-black"
           }`}
           aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
@@ -41,22 +75,40 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
           <Heart size={16} fill={isWishlisted ? "currentColor" : "none"} />
         </button>
 
+        <button
+          type="button"
+          onClick={(event) => {
+            stopCardClick(event);
+            onCompare?.(product);
+          }}
+          className={`absolute right-3 bottom-14 z-10 flex h-8 w-8 items-center justify-center bg-white shadow-sm transition hover:bg-black hover:text-white ${
+            isCompared ? "text-amber-500" : "text-gray-600"
+          }`}
+          aria-label={isCompared ? "Remove from comparison" : "Add to comparison"}
+          title="Compare"
+        >
+          <GitCompare size={14} />
+        </button>
+
         <motion.button
           type="button"
-          onClick={() => addToCart({ ...product, selectedVariant })}
-          initial={{ y: 18, opacity: 0 }}
-          animate={isHovered ? { y: 0, opacity: 1 } : { y: 18, opacity: 0 }}
-          className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 bg-black py-3 text-white transition hover:bg-zinc-800"
+          onClick={(event) => {
+            stopCardClick(event);
+            addToCart({ ...product, selectedVariant });
+          }}
+          initial={{ y: 8, opacity: 0.92 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="absolute inset-x-3 bottom-3 flex min-h-11 items-center justify-center gap-2 bg-black py-3 text-white shadow-xl transition hover:bg-zinc-800"
         >
           <ShoppingBag size={14} />
           <span className="text-[9px] font-black uppercase tracking-[0.2em]">Add to Bag</span>
         </motion.button>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="border-x border-b border-black/5 bg-white p-3.5 sm:p-4 dark:border-white/10 dark:bg-zinc-950">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-[11px] font-black uppercase leading-tight tracking-tight group-hover:underline">
+            <h3 className="text-[11px] font-black uppercase leading-tight tracking-tight transition group-hover:text-gray-500 dark:group-hover:text-zinc-400">
               {product.title}
             </h3>
             <p className="mt-1.5 text-[9px] font-bold uppercase tracking-widest text-gray-400">
@@ -69,27 +121,37 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
         </div>
 
         {product.variants?.length > 0 && (
-          <div className="flex gap-2 pt-1">
+          <div className="mt-4 flex flex-wrap gap-2" role="radiogroup" aria-label={`${product.title} color`}>
             {product.variants.map((variant) => (
               <button
                 key={variant.colorName}
                 type="button"
+                onClick={(event) => {
+                  stopCardClick(event);
+                  setSelectedVariant(variant);
+                }}
                 onMouseEnter={() => setSelectedVariant(variant)}
                 onFocus={() => setSelectedVariant(variant)}
-                className={`h-4 w-4 rounded-full border transition-all duration-300 ${
+                role="radio"
+                aria-checked={selectedVariant.colorName === variant.colorName}
+                className={`flex h-7 w-7 items-center justify-center rounded-full border bg-white transition-all duration-300 dark:bg-zinc-900 ${
                   selectedVariant.colorName === variant.colorName
-                    ? "scale-125 border-black ring-1 ring-black/20 ring-offset-1"
-                    : "border-transparent"
+                    ? "border-black ring-2 ring-black/20 ring-offset-1"
+                    : "border-black/10 hover:border-black/50"
                 }`}
-                style={{ backgroundColor: variant.colorHex }}
                 title={variant.colorName}
                 aria-label={`Select ${variant.colorName}`}
-              />
+              >
+                <span
+                  className="h-4 w-4 rounded-full border border-black/10"
+                  style={getColorSwatchStyle(variant)}
+                />
+              </button>
             ))}
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/5 pt-3">
           <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-gray-400">
             {selectedVariant.colorName}
           </p>
@@ -100,7 +162,7 @@ const ProductCard = ({ product, addToCart, isWishlisted = false, toggleWishlist 
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
 };
 

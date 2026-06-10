@@ -186,12 +186,16 @@ const isLocalOrRemoteImage = (image) =>
     image.startsWith("data:image"));
 
 export const resolveProductImages = (product = {}) => {
-  const image = product.image || product.img;
+  const image = product.image || product.image_url || product.img;
 
   if (isLocalOrRemoteImage(image)) {
+    const colorName = product.colorName || product.color_name || "Default";
+    const colorHex = product.colorHex || product.color_hex || "#111111";
+    const colorHexSecondary = product.colorHexSecondary || product.color_hex_secondary || "";
+
     return {
       img: image,
-      variants: createVariants([image], [{ colorName: "Default", colorHex: "#111111" }]),
+      variants: createVariants([image], [{ colorName, colorHex, colorHexSecondary }]),
     };
   }
 
@@ -218,19 +222,87 @@ export const resolveProductImages = (product = {}) => {
 
 export const formatProductForFrontend = (product = {}) => {
   const images = resolveProductImages(product);
+  const productText = normalize([product.name, product.title, product.subCategory, product.category].join(" "));
+  const isBag = /\b(handbag|bag|bags|sling|accessor|accessories)\b/.test(productText);
+  const normalizedCategory = isBag && normalize(product.category) === "shoes"
+    ? "Women"
+    : product.category || "General";
+  const normalizedSubCategory = isBag && normalize(product.category) === "shoes"
+    ? "Accessories"
+    : product.subCategory || "General";
   const isShoe =
-    String(product.category || product.subCategory || "").toLowerCase().includes("shoe") ||
+    String(normalizedCategory || normalizedSubCategory || "").toLowerCase().includes("shoe") ||
     String(product.name || product.title || "").toLowerCase().match(/dunk|spezial|sneaker|shoe|sandal/);
 
   return {
     id: product.id,
     title: product.name || product.title || "Unnamed",
     brand: product.brand || "Unknown",
-    category: product.category || "General",
-    subCategory: product.subCategory || "General",
+    category: normalizedCategory,
+    subCategory: normalizedSubCategory,
+    description: product.description || product.desc || "",
     price: Number(product.price) || 0,
     sizes: product.sizes || (isShoe ? [] : ["S", "M", "L", "XL"]),
     shoeSizes: product.shoeSizes || (isShoe ? ["UK 6", "UK 7", "UK 8", "UK 9", "UK 10"] : []),
+    colorName: product.colorName || product.color_name || "Default",
+    colorHex: product.colorHex || product.color_hex || "#111111",
+    colorHexSecondary: product.colorHexSecondary || product.color_hex_secondary || "",
+    isFeatured: product.isFeatured || product.is_featured || false,
     ...images,
   };
 };
+
+const normalizeProductName = (value) => String(value || "").trim().toLowerCase();
+
+export const groupProductsForFrontend = (products = []) => {
+  const grouped = new Map();
+
+  products.map(formatProductForFrontend).forEach((product) => {
+    const key = [
+      product.category,
+      product.subCategory,
+      product.brand,
+      product.title,
+    ].map(normalizeProductName).join("|");
+    const selectedVariant =
+      product.variants?.find((variant) => variant.colorName === product.colorName) ||
+      product.variants?.[0] || {
+        image: product.img,
+        colorName: product.colorName,
+        colorHex: product.colorHex,
+        colorHexSecondary: product.colorHexSecondary,
+      };
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        ...product,
+        img: selectedVariant.image || product.img,
+        variants: [{ ...selectedVariant, productId: product.id }],
+      });
+      return;
+    }
+
+    const existing = grouped.get(key);
+    const variantWithProduct = { ...selectedVariant, productId: product.id };
+    const variantExists = existing.variants.some(
+      (variant) => normalizeProductName(variant.colorName) === normalizeProductName(variantWithProduct.colorName)
+    );
+
+    grouped.set(key, {
+      ...existing,
+      variants: variantExists ? existing.variants : [...existing.variants, variantWithProduct],
+    });
+  });
+
+  return [...grouped.values()];
+};
+
+export const fallbackProducts = [
+  { id: 101, name: "Nike Dunk Low", brand: "Nike", category: "Shoes", subCategory: "Lifestyle", price: 120, description: "Low-profile Nike sneakers with a padded collar, durable upper, and everyday court-inspired shape." },
+  { id: 102, name: "Adidas Spezial", brand: "Adidas", category: "Shoes", subCategory: "Lifestyle", price: 110, description: "Retro Adidas Spezial pair with a clean terrace silhouette, gum-style sole feel, and easy styling range." },
+  { id: 103, name: "Carhartt Hoodie", brand: "Carhartt", category: "Men", subCategory: "Hoodies", price: 85, description: "Heavyweight Carhartt hoodie with a relaxed fit, soft inner feel, and utility-minded everyday comfort." },
+  { id: 104, name: "Nike Graphic Tee", brand: "Nike", category: "Men", subCategory: "T-Shirts", price: 45, description: "Soft Nike graphic tee made for casual rotation, layering, and relaxed warm-weather fits." },
+  { id: 105, name: "Adidas Vintage Tee", brand: "Adidas", category: "Women", subCategory: "Tops", price: 40, description: "Vintage-inspired Adidas tee with a comfortable drape and classic sporty branding." },
+  { id: 106, name: "Carhartt Utility Pants", brand: "Carhartt", category: "Men", subCategory: "Pants", price: 95, description: "Structured Carhartt utility pants with a workwear feel, practical pockets, and sturdy daily wear." },
+  { id: 107, name: "New Balance Basic Tee", brand: "New Balance", category: "Men", subCategory: "T-Shirts", price: 35, description: "Clean New Balance basic tee with a simple fit, soft hand feel, and repeat-wear versatility." },
+].map(formatProductForFrontend);
