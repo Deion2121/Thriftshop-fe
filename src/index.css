@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #ffffff;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+:root.dark body,
+:root.dark #root {
+  background: #09090b;
+}
+
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
 /* --------------------------- */
 /* Fade Slide Animation        */
 /* --------------------------- */

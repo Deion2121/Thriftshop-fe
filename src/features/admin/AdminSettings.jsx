@@ -10,6 +10,7 @@ import {
   Store,
   Truck,
   UserCog,
+  Users,
 } from "lucide-react";
 import { settingsService } from "./settingsService";
 import { useAuth } from "../auth/AuthContext";
@@ -35,10 +36,14 @@ const SettingsPanel = () => {
   const { user, initSession } = useAuth();
   const [settings, setSettings] = useState(null);
   const [profileEmail, setProfileEmail] = useState(user?.email || "");
+  const [managedUsers, setManagedUsers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [managedUserDraft, setManagedUserDraft] = useState({ email: "", role: "user" });
   const [passwords, setPasswords] = useState(emptyPassword);
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savingManagedUser, setSavingManagedUser] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [notice, setNotice] = useState("");
@@ -50,8 +55,19 @@ const SettingsPanel = () => {
       try {
         setLoading(true);
         setErrors({});
-        const data = await settingsService.getSettings();
-        if (active) setSettings(data);
+        const [settingsData, usersData] = await Promise.all([
+          settingsService.getSettings(),
+          settingsService.getUsers(),
+        ]);
+        if (active) {
+          setSettings(settingsData);
+          setManagedUsers(usersData);
+          const firstUser = usersData[0];
+          if (firstUser) {
+            setSelectedUserId(String(firstUser.id));
+            setManagedUserDraft({ email: firstUser.email || "", role: firstUser.role || "user" });
+          }
+        }
       } catch (err) {
         if (active) setErrors({ settings: err.message });
       } finally {
@@ -68,6 +84,12 @@ const SettingsPanel = () => {
   useEffect(() => {
     setProfileEmail(user?.email || "");
   }, [user?.email]);
+
+  useEffect(() => {
+    const selectedUser = managedUsers.find((managedUser) => String(managedUser.id) === String(selectedUserId));
+    if (!selectedUser) return;
+    setManagedUserDraft({ email: selectedUser.email || "", role: selectedUser.role || "user" });
+  }, [managedUsers, selectedUserId]);
 
   const enabledPayments = useMemo(() => {
     if (!settings?.payments) return 0;
@@ -128,6 +150,38 @@ const SettingsPanel = () => {
       setErrors({ profile: err.message });
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const saveManagedUser = async (event) => {
+    event.preventDefault();
+
+    if (!selectedUserId) {
+      setErrors({ managedUser: "Select a user to manage." });
+      return;
+    }
+
+    if (!managedUserDraft.email.trim()) {
+      setErrors({ managedUser: "User email is required." });
+      return;
+    }
+
+    try {
+      setSavingManagedUser(true);
+      setNotice("");
+      const updatedUser = await settingsService.updateUser(selectedUserId, managedUserDraft);
+      setManagedUsers((prev) =>
+        prev.map((managedUser) =>
+          String(managedUser.id) === String(updatedUser.id) ? { ...managedUser, ...updatedUser } : managedUser
+        )
+      );
+      if (String(updatedUser.id) === String(user?.id)) await initSession();
+      setErrors({});
+      setNotice("User account updated.");
+    } catch (err) {
+      setErrors({ managedUser: err.message });
+    } finally {
+      setSavingManagedUser(false);
     }
   };
 
@@ -248,6 +302,33 @@ const SettingsPanel = () => {
       </form>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <form onSubmit={saveManagedUser}>
+          <SettingsSection icon={<Users size={18} />} title="Manage User Accounts">
+            {errors.managedUser && <InlineError message={errors.managedUser} />}
+            <SelectInput
+              label="User"
+              value={selectedUserId}
+              onChange={setSelectedUserId}
+              options={managedUsers.map((managedUser) => [String(managedUser.id), managedUser.email])}
+            />
+            <TextInput
+              label="User Email"
+              type="email"
+              value={managedUserDraft.email}
+              onChange={(value) => setManagedUserDraft((prev) => ({ ...prev, email: value }))}
+            />
+            <SelectInput
+              label="Role"
+              value={managedUserDraft.role}
+              onChange={(value) => setManagedUserDraft((prev) => ({ ...prev, role: value }))}
+              options={[["user", "User"], ["admin", "Admin"]]}
+            />
+            <button type="submit" disabled={savingManagedUser || managedUsers.length === 0} className="inline-flex h-11 items-center justify-center gap-2 border border-slate-200 px-5 text-xs font-black uppercase tracking-widest transition hover:border-black disabled:opacity-60">
+              <Save size={15} /> {savingManagedUser ? "Saving..." : "Save User"}
+            </button>
+          </SettingsSection>
+        </form>
+
         <form onSubmit={saveProfile}>
           <SettingsSection icon={<UserCog size={18} />} title="Admin Profile">
             {errors.profile && <InlineError message={errors.profile} />}
@@ -258,7 +339,7 @@ const SettingsPanel = () => {
           </SettingsSection>
         </form>
 
-        <form onSubmit={savePassword}>
+        <form onSubmit={savePassword} className="xl:col-span-2">
           <SettingsSection icon={<Lock size={18} />} title="Password">
             {errors.password && <InlineError message={errors.password} />}
             <TextInput label="Current Password" type="password" value={passwords.currentPassword} onChange={(value) => setPasswords((prev) => ({ ...prev, currentPassword: value }))} />

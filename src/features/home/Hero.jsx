@@ -39,7 +39,7 @@ const Hero = ({ openShop }) => {
       >
         <div>
           <div className="inline-flex items-center gap-2 border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-md">
-            <Sparkles size={14} className="text-white" />
+            <p className="text-white" />
             <p className="text-[10px] font-black uppercase tracking-[0.35em] text-white/80">
               Thrifted heat, no repeats
             </p>

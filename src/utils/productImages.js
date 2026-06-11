@@ -191,10 +191,11 @@ export const resolveProductImages = (product = {}) => {
   if (isLocalOrRemoteImage(image)) {
     const colorName = product.colorName || product.color_name || "Default";
     const colorHex = product.colorHex || product.color_hex || "#111111";
+    const colorHexSecondary = product.colorHexSecondary || product.color_hex_secondary || "";
 
     return {
       img: image,
-      variants: createVariants([image], [{ colorName, colorHex }]),
+      variants: createVariants([image], [{ colorName, colorHex, colorHexSecondary }]),
     };
   }
 
@@ -221,22 +222,32 @@ export const resolveProductImages = (product = {}) => {
 
 export const formatProductForFrontend = (product = {}) => {
   const images = resolveProductImages(product);
+  const productText = normalize([product.name, product.title, product.subCategory, product.category].join(" "));
+  const isBag = /\b(handbag|bag|bags|sling|accessor|accessories)\b/.test(productText);
+  const normalizedCategory = isBag && normalize(product.category) === "shoes"
+    ? "Women"
+    : product.category || "General";
+  const normalizedSubCategory = isBag && normalize(product.category) === "shoes"
+    ? "Accessories"
+    : product.subCategory || "General";
   const isShoe =
-    String(product.category || product.subCategory || "").toLowerCase().includes("shoe") ||
+    String(normalizedCategory || normalizedSubCategory || "").toLowerCase().includes("shoe") ||
     String(product.name || product.title || "").toLowerCase().match(/dunk|spezial|sneaker|shoe|sandal/);
 
   return {
     id: product.id,
     title: product.name || product.title || "Unnamed",
     brand: product.brand || "Unknown",
-    category: product.category || "General",
-    subCategory: product.subCategory || "General",
+    category: normalizedCategory,
+    subCategory: normalizedSubCategory,
     description: product.description || product.desc || "",
     price: Number(product.price) || 0,
     sizes: product.sizes || (isShoe ? [] : ["S", "M", "L", "XL"]),
     shoeSizes: product.shoeSizes || (isShoe ? ["UK 6", "UK 7", "UK 8", "UK 9", "UK 10"] : []),
     colorName: product.colorName || product.color_name || "Default",
     colorHex: product.colorHex || product.color_hex || "#111111",
+    colorHexSecondary: product.colorHexSecondary || product.color_hex_secondary || "",
+    isFeatured: product.isFeatured || product.is_featured || false,
     ...images,
   };
 };
@@ -247,10 +258,20 @@ export const groupProductsForFrontend = (products = []) => {
   const grouped = new Map();
 
   products.map(formatProductForFrontend).forEach((product) => {
-    const key = normalizeProductName(product.title);
+    const key = [
+      product.category,
+      product.subCategory,
+      product.brand,
+      product.title,
+    ].map(normalizeProductName).join("|");
     const selectedVariant =
       product.variants?.find((variant) => variant.colorName === product.colorName) ||
-      product.variants?.[0] || { image: product.img, colorName: product.colorName, colorHex: product.colorHex };
+      product.variants?.[0] || {
+        image: product.img,
+        colorName: product.colorName,
+        colorHex: product.colorHex,
+        colorHexSecondary: product.colorHexSecondary,
+      };
 
     if (!grouped.has(key)) {
       grouped.set(key, {

@@ -16,13 +16,13 @@ const FilterAccordion = ({
   const isSizeGrid = title.toLowerCase().includes("size");
 
   return (
-    <div className="border-b py-4">
+    <div className="border-b py-4 dark:border-white/10">
       {/* Accordion Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex justify-between items-center mb-4 group"
       >
-        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-900 group-hover:text-gray-500 transition-colors">
+        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-900 transition-colors group-hover:text-gray-500 dark:text-zinc-100 dark:group-hover:text-zinc-400">
           {title}
         </span>
         <motion.div
@@ -61,7 +61,7 @@ const FilterAccordion = ({
                     className={`px-3 py-2 text-[10px] font-bold uppercase tracking-widest border transition-all duration-300 text-center ${
                       isSelected
                         ? "bg-black text-white border-black"
-                        : "bg-white text-gray-500 border-gray-100 hover:border-black hover:text-black"
+                        : "bg-white text-gray-500 border-gray-100 hover:border-black hover:text-black dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-white dark:hover:text-white"
                     }`}
                   >
                     {item}

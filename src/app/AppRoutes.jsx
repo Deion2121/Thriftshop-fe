@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { Route, Routes } from "react-router-dom";
 
 import AdminDashboard from "../features/admin/AdminDashboard";
+import AccountSettings from "../features/account/AccountSettings";
 import Login from "../features/auth/Login";
 import Register from "../features/auth/Register";
 import Ecommerce from "../features/home/Ecommerce";
@@ -16,6 +17,8 @@ import ProductGrid from "../features/products/ProductGrid";
 import FilterSidebar from "../features/products/FilterSidebar";
 import CartModal from "../features/cart/CartModal";
 import OrderTrackingModal from "../features/orders/OrderTrackingModal";
+import ProductCompareModal from "../features/products/ProductCompareModal";
+import WishlistPage from "../features/wishlist/Wishlist";
 import { useAuth } from "../features/auth/AuthContext";
 import { fallbackProducts, groupProductsForFrontend } from "../utils/productImages";
 import AdminRoute from "./AdminRoutes";
@@ -29,6 +32,8 @@ const defaultFilters = {
   size: null,
   shoeSize: null,
   sort: "Newest",
+  minPrice: null,
+  maxPrice: null,
 };
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
@@ -98,23 +103,23 @@ const compressCartItems = (items) =>
   }, [])
     .sort((a, b) => cartItemKey(a).localeCompare(cartItemKey(b)));
 
-function AppRoutes() {
-  const { currentUser } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [cartItems, setCartItems] = useState(() => compressCartItems(readStoredList("cartItems")));
-  const [wishlistItems, setWishlistItems] = useState(() => readStoredList("wishlistItems"));
-  const [cartModalOpen, setCartModalOpen] = useState(false);
-  const [shopOpen, setShopOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isShopView, setIsShopView] = useState(false);
-  const [allProducts, setAllProducts] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [productsError, setProductsError] = useState("");
-  const [filters, setFilters] = useState(defaultFilters);
-  const [trackingModalOpen, setTrackingModalOpen] = useState(false);
-  const [trackedOrderNumber, setTrackedOrderNumber] = useState(() => localStorage.getItem("recentOrderNumber"));
+function AppRoutes({ compareProducts = [], toggleCompare, clearCompare }) {
+   const { currentUser } = useAuth();
+   const [isLoading, setIsLoading] = useState(true);
+   const [cartItems, setCartItems] = useState(() => compressCartItems(readStoredList("cartItems")));
+   const [wishlistItems, setWishlistItems] = useState(() => readStoredList("wishlistItems"));
+   const [cartModalOpen, setCartModalOpen] = useState(false);
+   const [shopOpen, setShopOpen] = useState(false);
+   const [searchTerm, setSearchTerm] = useState("");
+   const [isShopView, setIsShopView] = useState(false);
+   const [allProducts, setAllProducts] = useState([]);
+   const [productsLoading, setProductsLoading] = useState(true);
+   const [productsError, setProductsError] = useState("");
+   const [filters, setFilters] = useState(defaultFilters);
+   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
+   const [trackedOrderNumber, setTrackedOrderNumber] = useState(() => localStorage.getItem("recentOrderNumber"));
 
-  const fetchProducts = async () => {
+   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
       setProductsError("");
@@ -250,14 +255,14 @@ function AppRoutes() {
        />
 
       <div className="grow relative">
-        {!isShopView ? (
-          <>
-            <Hero openShop={openShop} />
-            <Ecommerce addToCart={addToCart} filters={filters} openShop={openShop} />
-            <LogoSlider />
-          </>
-        ) : (
-          <main className="bg-white pb-20 pt-28">
+{!isShopView ? (
+           <>
+             <Hero openShop={openShop} />
+             <Ecommerce addToCart={addToCart} filters={filters} openShop={openShop} allProducts={allProducts} />
+             <LogoSlider />
+           </>
+         ) : (
+          <main className="bg-white pb-20 pt-28 text-black dark:bg-zinc-950 dark:text-zinc-100">
             <div className="max-w-[1400px] mx-auto px-4 md:px-10">
               <button
                 type="button"
@@ -293,7 +298,7 @@ function AppRoutes() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4 border-x border-b border-black/10 bg-[#f7f7f4] p-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-4 border-x border-b border-black/10 bg-[#f7f7f4] p-4 md:flex-row md:items-center md:justify-between dark:border-white/10 dark:bg-zinc-900">
                 <div className="flex flex-wrap gap-2">
                   {shopChips.map((category) => (
                     <button
@@ -303,7 +308,7 @@ function AppRoutes() {
                       className={`border px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition ${
                         filters.category === category
                           ? "border-black bg-black text-white"
-                          : "border-black/10 bg-white text-gray-600 hover:border-black hover:text-black"
+                          : "border-black/10 bg-white text-gray-600 hover:border-black hover:text-black dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-white dark:hover:text-white"
                       }`}
                     >
                       {category}
@@ -313,7 +318,7 @@ function AppRoutes() {
                 <button
                   type="button"
                   onClick={() => openShop("All", "All", "All")}
-                  className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 transition hover:text-black"
+                  className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 transition hover:text-black dark:text-zinc-400 dark:hover:text-white"
                 >
                   Full drop <ArrowRight size={13} />
                 </button>
@@ -344,6 +349,8 @@ function AppRoutes() {
                 wishlistItems={wishlistItems}
                 toggleWishlist={toggleWishlist}
                 onClearFilters={clearShop}
+                compareProducts={compareProducts}
+                toggleCompare={toggleCompare}
               />
             </div>
           </main>
@@ -368,15 +375,22 @@ function AppRoutes() {
          openShop={openShop}
          onOrderCreated={handleOrderCreated}
        />
-       <OrderTrackingModal
-         isOpen={trackingModalOpen}
-         onClose={() => setTrackingModalOpen(false)}
-         orderNumber={trackedOrderNumber}
-         currentUser={currentUser}
-         recentOrder={trackedOrderNumber}
-       />
-     </>
-  );
+<OrderTrackingModal
+          isOpen={trackingModalOpen}
+          onClose={() => setTrackingModalOpen(false)}
+          orderNumber={trackedOrderNumber}
+          currentUser={currentUser}
+          recentOrder={trackedOrderNumber}
+        />
+
+        <ProductCompareModal
+          products={compareProducts}
+          onClose={clearCompare}
+          onClear={clearCompare}
+          onRemove={toggleCompare}
+        />
+      </>
+   );
 
   if (isLoading) {
     return <Loader finishLoading={() => setIsLoading(false)} />;
@@ -388,11 +402,12 @@ function AppRoutes() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.8 }}
-        className="flex min-h-screen flex-col bg-white text-black"
+        className="flex min-h-screen flex-col bg-white text-black dark:bg-zinc-950 dark:text-zinc-100"
       >
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/account" element={<AccountSettings />} />
 
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminDashboard />} />
@@ -400,6 +415,7 @@ function AppRoutes() {
           </Route>
 
           <Route path="/" element={<ShopLayout />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
         </Routes>
       </motion.div>
     </AnimatePresence>

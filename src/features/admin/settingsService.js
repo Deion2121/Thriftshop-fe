@@ -62,4 +62,26 @@ export const settingsService = {
 
     return parseResponse(res, "Could not update password.");
   },
+
+  getUsers: async () => {
+    const res = await fetch(`${API_BASE}/api/users/users`, {
+      credentials: "include",
+    });
+
+    return parseResponse(res, "Could not load users.");
+  },
+
+  updateUser: async (id, user) => {
+    const res = await fetch(`${API_BASE}/api/users/users/${id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...csrfHeaders(),
+      },
+      body: JSON.stringify(user),
+    });
+
+    return parseResponse(res, "Could not update user.");
+  },
 };

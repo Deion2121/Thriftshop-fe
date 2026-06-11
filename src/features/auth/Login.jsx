@@ -21,7 +21,7 @@ const Login = () => {
     [email, loading, password]
   );
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!canSubmit) return;
@@ -35,12 +35,13 @@ const Login = () => {
         password,
       });
 
-      if (!res?.user) {
+      const user = res?.user;
+      if (!user) {
         throw new Error("Invalid login response from server");
       }
 
-      login(res.user);
-      navigate(res.user.role === "admin" ? "/admin" : "/");
+      login(user);
+      navigate(user.role === "admin" ? "/admin" : "/", { replace: true });
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {
@@ -69,14 +70,13 @@ const Login = () => {
             <ArrowLeft size={15} /> Back to shop
           </button>
 
-          <div className="max-w-xl pb-8">
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60">Admin and member access</p>
-            <h1 className="mt-4 text-6xl font-black uppercase leading-[0.9] tracking-tight">
-              Sign in to JThrift
+          <div className="max-w-xl pb-80">
+            <h1 className="mb-9 text-4xl font-black uppercase leading-[0.9] tracking-tight">
+              Sign in to
             </h1>
-            <p className="mt-5 text-sm leading-7 text-white/70">
-              Manage inventory, continue shopping, and keep your thrift finds ready across sessions.
-            </p>
+            <h2 className="mt-12 text-8xl text-center font-serif text-slate-400 uppercase leading-0 tracking-tight">
+              JThrift
+            </h2>        
           </div>
         </div>
       </section>
@@ -97,7 +97,7 @@ const Login = () => {
               <p className="mt-2 text-sm text-gray-500">Use your account details to continue.</p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
                 <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                   {error}

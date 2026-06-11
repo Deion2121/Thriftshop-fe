@@ -1,9 +1,12 @@
 import React, { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, ShoppingBag, Trash2, X } from "lucide-react";
+import { ArrowRight, ShoppingBag, Trash2, X, CreditCard } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { orderService } from "../orders/orderService";
 import OrderTrackingModal from "../orders/OrderTrackingModal";
+import { loadStripe } from "@stripe/stripe-js";
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "");
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
 const getCartItemKey = (item) => {
@@ -11,8 +14,21 @@ const getCartItemKey = (item) => {
   return productName;
 };
 
+const getColorSwatchStyle = (variant = {}) => {
+  const primary = variant.colorHex || "#111111";
+  const secondary = variant.colorHexSecondary;
+
+  return secondary
+    ? { background: `linear-gradient(135deg, ${primary} 0 50%, ${secondary} 50% 100%)` }
+    : { backgroundColor: primary };
+};
+
 const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrderCreated }) => {
   const { currentUser } = useAuth();
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressFields, setAddressFields] = useState({ fullName: "", phone: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "" });
+
   const subtotal = cartItems.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0);
   const shipping = subtotal > 0 && subtotal < 250 ? 45 : 0;
   const total = subtotal + shipping;
@@ -22,6 +38,8 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
   const [trackedOrderNumber, setTrackedOrderNumber] = useState(null);
   const [checkoutError, setCheckoutError] = useState(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
 
   const removeItem = (cartKey) => {
     setCartItems((prev) => prev.filter((item) => getCartItemKey(item) !== cartKey));
@@ -49,12 +67,20 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
     );
   };
 
-    const handleCheckout = async () => {
+     const handleCheckout = async () => {
     if (!currentUser) {
       alert("Please log in to complete your purchase.");
       onClose();
       return;
     }
+
+    if (!shippingAddress.trim() && !addressFields.addressLine1.trim()) {
+      setCheckoutError("Please enter a shipping address.");
+      return;
+    }
+
+    const fullAddress = shippingAddress ||
+      `${addressFields.fullName}, ${addressFields.phone}, ${addressFields.addressLine1}${addressFields.addressLine2 ? ", " + addressFields.addressLine2 : ""}, ${addressFields.city}, ${addressFields.state} ${addressFields.postalCode}`;
 
     setCheckoutError(null);
     setCheckoutSuccess(null);
@@ -67,28 +93,60 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
         variant: item.selectedVariant?.colorName || "Default",
       }));
 
-       const orderData = {
-         items: orderItems,
-         shipping_address: "",
-       };
+      const orderData = {
+        items: orderItems,
+        shipping_address: fullAddress.trim(),
+      };
 
-       const result = await orderService.createOrder(orderData);
+      const result = await orderService.createOrder(orderData);
 
-       setTrackedOrderNumber(result.order_number);
-       onOrderCreated?.(result.order_number);
-       setCheckoutSuccess(`Order placed successfully! Your order number is ${result.order_number}`);
-       setCartItems([]);
-       setTimeout(() => {
-         setTrackingModalOpen(true);
-         setCheckoutSuccess(null);
-       }, 1500);
-     } catch (err) {
-       console.error("Checkout error:", err);
-       setCheckoutError(err.message || "Something went wrong. Please try again.");
-     } finally {
-       setIsCheckoutLoading(false);
-     }
-   };
+      setTrackedOrderNumber(result.order_number);
+      onOrderCreated?.(result.order_number);
+      setIsPaying(true);
+    } catch (err) {
+      console.error("Checkout error:", err);
+      setCheckoutError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsCheckoutLoading(false);
+    }
+  };
+
+  const handlePayNow = async () => {
+    if (!trackedOrderNumber) return;
+    setIsPaying(true);
+    setCheckoutError(null);
+
+    try {
+      const paymentRes = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/payments/create-payment-intent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ amount: Number(total || 0) }),
+        }
+      );
+
+      if (!paymentRes.ok) {
+        const err = await paymentRes.json().catch(() => ({}));
+        throw new Error(err.message || "Payment setup failed");
+      }
+
+      const { clientSecret } = await paymentRes.json();
+
+      setCheckoutSuccess(`Order ${trackedOrderNumber} is ready for payment.`);
+      setCartItems([]);
+      setTimeout(() => {
+        setTrackingModalOpen(true);
+        setCheckoutSuccess(null);
+        setIsPaying(false);
+      }, 1500);
+    } catch (err) {
+      console.error("Payment error:", err);
+      setCheckoutError(err.message || "Something went wrong. Please try again.");
+      setIsPaying(false);
+    }
+  };
 
   return (
     <>
@@ -108,14 +166,14 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-[301] shadow-2xl flex flex-col"
+              className="fixed right-0 top-0 z-[301] flex h-full w-full max-w-md flex-col bg-white shadow-2xl dark:bg-zinc-950 dark:text-zinc-100"
             >
-              <div className="p-6 border-b flex justify-between items-center">
+              <div className="flex items-center justify-between border-b p-6 dark:border-white/10">
                 <div className="flex items-center gap-2">
                   <ShoppingBag size={20} />
                   <h2 className="font-black uppercase tracking-tighter text-xl">Your Bag [{cartItems.length}]</h2>
                 </div>
-                <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition">
+                <button type="button" onClick={onClose} className="rounded-full p-2 transition hover:bg-gray-100 dark:hover:bg-white/10">
                   <X size={24} />
                 </button>
               </div>
@@ -145,8 +203,8 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                         : [{ image: item.img, colorName: "Default", colorHex: "#111111" }];
 
                     return (
-                      <div key={cartKey} className="flex gap-4 border-b border-gray-100 pb-6">
-                        <div className="w-24 h-32 bg-gray-100 shrink-0">
+                      <div key={cartKey} className="flex gap-4 border-b border-gray-100 pb-6 dark:border-white/10">
+                        <div className="h-32 w-24 shrink-0 bg-gray-100 dark:bg-zinc-900">
                           <img
                             src={item.selectedVariant?.image || item.img}
                             alt={item.title}
@@ -165,7 +223,7 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                             <div className="mt-2 flex items-center gap-2">
                               <span
                                 className="h-3.5 w-3.5 rounded-full border border-black/10 ring-1 ring-black/10"
-                                style={{ backgroundColor: item.selectedVariant?.colorHex || "#111111" }}
+                                style={getColorSwatchStyle(item.selectedVariant)}
                               />
                               <p className="text-[10px] font-medium">Color: {variantName}</p>
                             </div>
@@ -188,7 +246,7 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                                       aria-checked={isSelected}
                                       title={variant.colorName}
                                       aria-label={`Choose ${variant.colorName}`}
-                                      className={`flex h-7 w-7 items-center justify-center rounded-full border bg-white transition ${
+                                      className={`flex h-7 w-7 items-center justify-center rounded-full border bg-white transition dark:bg-zinc-900 ${
                                         isSelected
                                           ? "border-black ring-2 ring-black/20 ring-offset-1"
                                           : "border-black/10 hover:border-black/50"
@@ -196,7 +254,7 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                                     >
                                       <span
                                         className="h-4 w-4 rounded-full border border-black/10"
-                                        style={{ backgroundColor: variant.colorHex || "#111111" }}
+                                        style={getColorSwatchStyle(variant)}
                                       />
                                     </button>
                                   );
@@ -204,11 +262,11 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                               </div>
                             )}
 
-                            <div className="mt-3 inline-flex items-center border border-gray-200">
+                            <div className="mt-3 inline-flex items-center border border-gray-200 dark:border-white/10">
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(cartKey, -1)}
-                                className="w-8 h-8 text-sm hover:bg-gray-100"
+                                className="h-8 w-8 text-sm hover:bg-gray-100 dark:hover:bg-white/10"
                               >
                                 -
                               </button>
@@ -216,7 +274,7 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(cartKey, 1)}
-                                className="w-8 h-8 text-sm hover:bg-gray-100"
+                                className="h-8 w-8 text-sm hover:bg-gray-100 dark:hover:bg-white/10"
                               >
                                 +
                               </button>
@@ -233,7 +291,7 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
               </div>
 
                {cartItems.length > 0 && (
-                 <div className="p-8 bg-gray-50 space-y-4">
+                 <div className="space-y-4 bg-gray-50 p-8 dark:bg-zinc-900">
                    <div className="space-y-3">
                      <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-gray-500">
                        <span>Subtotal</span>
@@ -243,20 +301,89 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                        <span>Shipping</span>
                        <span>{shipping === 0 ? "Free" : `PHP ${shipping.toLocaleString()}`}</span>
                      </div>
-                     <div className="flex justify-between items-end border-t border-gray-200 pt-4">
+                     <div className="flex items-end justify-between border-t border-gray-200 pt-4 dark:border-white/10">
                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Total</span>
                        <span className="text-xl font-black italic">PHP {total.toLocaleString()}</span>
                      </div>
                    </div>
-                   <p className="text-[9px] text-gray-400 uppercase tracking-widest leading-relaxed">
-                     Free shipping starts at PHP 250. Taxes are calculated at checkout.
-                   </p>
+                    <p className="text-[9px] text-gray-400 uppercase tracking-widest leading-relaxed">
+                      Free shipping starts at PHP 250. Taxes are calculated at checkout.
+                    </p>
 
-                   {checkoutError && (
-                     <p className="text-[11px] text-red-600 bg-red-50 p-3 rounded-lg font-medium">
-                       {checkoutError}
-                     </p>
-                   )}
+                   <div className="space-y-3">
+                     <label className="block">
+                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Shipping Address *</span>
+                       {!showAddressForm ? (
+                         <button
+                           type="button"
+                           onClick={() => setShowAddressForm(true)}
+                           className="mt-2 w-full border border-gray-200 bg-white px-4 py-3 text-left text-xs font-medium text-gray-600 transition hover:border-black"
+                         >
+                           {shippingAddress || "Click to add shipping address"}
+                         </button>
+                       ) : (
+                         <div className="mt-2 space-y-2 border border-gray-200 bg-white p-4 rounded-lg">
+                           <input
+                             type="text"
+                             placeholder="Full Name *"
+                             value={addressFields.fullName}
+                             onChange={(e) => setAddressFields((prev) => ({ ...prev, fullName: e.target.value }))}
+                             className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                           />
+                           <input
+                             type="text"
+                             placeholder="Phone Number *"
+                             value={addressFields.phone}
+                             onChange={(e) => setAddressFields((prev) => ({ ...prev, phone: e.target.value }))}
+                             className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                           />
+                           <input
+                             type="text"
+                             placeholder="Address Line 1 *"
+                             value={addressFields.addressLine1}
+                             onChange={(e) => setAddressFields((prev) => ({ ...prev, addressLine1: e.target.value }))}
+                             className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                           />
+                           <input
+                             type="text"
+                             placeholder="Address Line 2 (optional)"
+                             value={addressFields.addressLine2}
+                             onChange={(e) => setAddressFields((prev) => ({ ...prev, addressLine2: e.target.value }))}
+                             className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                           />
+                           <div className="grid grid-cols-2 gap-2">
+                             <input
+                               type="text"
+                               placeholder="City *"
+                               value={addressFields.city}
+                               onChange={(e) => setAddressFields((prev) => ({ ...prev, city: e.target.value }))}
+                               className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                             />
+                             <input
+                               type="text"
+                               placeholder="State/Province *"
+                               value={addressFields.state}
+                               onChange={(e) => setAddressFields((prev) => ({ ...prev, state: e.target.value }))}
+                               className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                             />
+                           </div>
+                           <input
+                             type="text"
+                             placeholder="Postal Code *"
+                             value={addressFields.postalCode}
+                             onChange={(e) => setAddressFields((prev) => ({ ...prev, postalCode: e.target.value }))}
+                             className="h-10 w-full border border-gray-200 px-3 text-xs outline-none focus:border-black"
+                           />
+                         </div>
+                       )}
+                     </label>
+                   </div>
+
+                    {checkoutError && (
+                      <p className="text-[11px] text-red-600 bg-red-50 p-3 rounded-lg font-medium">
+                        {checkoutError}
+                      </p>
+                    )}
 
                    {checkoutSuccess && (
                      <p className="text-[11px] text-green-600 bg-green-50 p-3 rounded-lg font-medium">
@@ -264,32 +391,42 @@ const CartModal = ({ isOpen, onClose, cartItems, setCartItems, openShop, onOrder
                      </p>
                    )}
 
-                   <button
-                     type="button"
-                     onClick={handleCheckout}
-                     disabled={isCheckoutLoading}
-                     className={`flex w-full items-center justify-center gap-3 bg-black py-5 text-[11px] font-black uppercase tracking-[0.3em] text-white transition-colors ${
-                       isCheckoutLoading
-                         ? "bg-zinc-400 cursor-not-allowed"
-                         : "hover:bg-zinc-800"
-                     }`}
-                   >
-                     {isCheckoutLoading ? (
-                       <>
-                         <motion.div
-                           animate={{ rotate: 360 }}
-                           transition={{ repeat: Infinity, duration: 1 }}
-                         >
-                           <X size={14} className="opacity-50" />
-                         </motion.div>
-                         Processing...
-                       </>
-                     ) : (
-                       <>
-                         Checkout Now <ArrowRight size={14} />
-                       </>
-                     )}
-                   </button>
+                    <button
+                      type="button"
+                      onClick={handleCheckout}
+                      disabled={isCheckoutLoading}
+                      className={`flex w-full items-center justify-center gap-3 bg-black py-5 text-[11px] font-black uppercase tracking-[0.3em] text-white transition-colors ${
+                        isCheckoutLoading
+                          ? "bg-zinc-400 cursor-not-allowed"
+                          : "hover:bg-zinc-800"
+                      }`}
+                    >
+                      {isCheckoutLoading ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 1 }}
+                          >
+                            <X size={14} className="opacity-50" />
+                          </motion.div>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          Checkout Now <ArrowRight size={14} />
+                        </>
+                      )}
+                    </button>
+
+                    {trackedOrderNumber && (
+                      <button
+                        type="button"
+                        onClick={handlePayNow}
+                        className="mt-3 flex w-full items-center justify-center gap-3 border border-black bg-white py-4 text-[11px] font-black uppercase tracking-[0.3em] text-black transition hover:bg-black hover:text-white"
+                      >
+                        <CreditCard size={14} /> Pay Now
+                      </button>
+                    )}
                  </div>
                )}
             </motion.div>
